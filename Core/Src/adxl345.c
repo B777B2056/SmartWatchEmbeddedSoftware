@@ -1,7 +1,10 @@
 #include "adxl345.h"
 #include "main.h"
 #include "spi.h"
+#include "rtc.h"
 #include "cmsis_os.h"
+#include <stdbool.h>
+#include <math.h>
 
 #define REPEAT_CNT      5       // 初始化时的重试次数
 #define DEVID		        0X00 	// 器件ID
@@ -39,7 +42,20 @@
 #define DATA_Y_START    DATA_Y0
 #define DATA_Z_START    DATA_Z0
 
+#define ACC_BUFFER_LEN  32
+#define GRAVIT_ACC      9.80665
+
 extern osMutexId stepCntMutexHandle;
+
+/* 判断是否已经过了00:00，用于步数重置 */
+static bool IsNewDayStarted()
+{
+  // 获取时间
+  RTC_TimeTypeDef time;
+  HAL_RTC_GetTime(&hrtc, &time, RTC_FORMAT_BIN);
+  // 判断时间是否过了00:00
+  return (0 == time.Hours) && (0 == time.Minutes);
+}
 
 static void NSS_Low()
 {
@@ -86,10 +102,13 @@ void ADXL345_Init()
       if (0xE5 == ADXL345_GetID())   break;
   }
   if (REPEAT_CNT == repeat)    return;
-  	ADXL345_Write(INT_ENABLE, 0x00);
+  ADXL345_Write(INT_ENABLE, 0x00);
 	ADXL345_Write(DATA_FORMAT, 0x0B);
 	ADXL345_Write(BW_RATE, 0x1A);
 	ADXL345_Write(POWER_CTL, 0x08);
+  ADXL345_Write(OFSX, 0x00);
+  ADXL345_Write(OFSY, 0x00);
+  ADXL345_Write(OFSZ, 0x00);
 	ADXL345_Write(INT_ENABLE, 0x14);
 }
 
@@ -119,24 +138,70 @@ static float ADXL345_AxisZ_Data()
   return ADXL345_Axis_Data(DATA_Z_START);
 }
 
-static uint32_t step_count = 0;
+uint8_t last_peak_cnt = 0;
+uint32_t step_count = 0;
+uint8_t acc_buf_cur_idx = 0;
+float acc_buffer[ACC_BUFFER_LEN];
+
+static void ADXL345_ResetStepCnt()
+{
+  osMutexWait(stepCntMutexHandle, osWaitForever);
+  step_count = 0;
+	osMutexRelease(stepCntMutexHandle);
+}
+
+static float CalculateACCStd()
+{
+  float sum = 0.0, mean, std = 0.0;
+  uint8_t i;
+  for(i = 0; i < 10; ++i)
+    sum += acc_buffer[i];
+  mean = sum / ACC_BUFFER_LEN;
+  for(i = 0; i < ACC_BUFFER_LEN; ++i)
+    std += ((acc_buffer[i] - mean) * (acc_buffer[i] - mean));
+  return sqrt(std / ACC_BUFFER_LEN);
+}
 
 void ADXL345_DoStepCnt()
 {
+  // If the time has passed 0 o'clock, reset the number of steps
+  if (IsNewDayStarted())  ADXL345_ResetStepCnt();
+  uint8_t i;
   // Count steps
+  float accX = ADXL345_AxisX_Data();
+  float accY = ADXL345_AxisY_Data();
   float accZ = ADXL345_AxisZ_Data();
-  if (accZ < 950.0f || accZ  > 1000.0f)
+  float acc = sqrt(accX*accX + accY*accY + accZ*accZ) - GRAVIT_ACC;
+  // Calculate acc std as peak threshold
+  float peak_threshold = CalculateACCStd();
+  // Fill acc buffer
+  if (acc_buf_cur_idx < ACC_BUFFER_LEN)
+    acc_buffer[acc_buf_cur_idx++] = acc;
+  else
   {
-		osMutexWait(stepCntMutexHandle, osWaitForever);
-    ++step_count;
-		osMutexWait(stepCntMutexHandle, osWaitForever);
+    for (i = 0; i < ACC_BUFFER_LEN - 1; ++i)
+      acc_buffer[i] = acc_buffer[i + 1];
+    acc_buffer[i] = acc;
   }
+  // Calculate peak number(higher than acc array std)
+  uint8_t peak_cnt = 0;
+  for (i = 1; i < ACC_BUFFER_LEN - 1; ++i)
+  {
+    if (acc_buffer[i] <= peak_threshold)  continue;
+    if ((acc_buffer[i-1] < acc_buffer[i]) && (acc_buffer[i] > acc_buffer[i+1]))
+      ++peak_cnt;
+  }
+  // Calculate step number
+  osMutexWait(stepCntMutexHandle, osWaitForever);
+  step_count += (peak_cnt - last_peak_cnt);
+	osMutexRelease(stepCntMutexHandle);
+  last_peak_cnt = peak_cnt;
 }
 
 uint32_t ADXL345_GetSteps()
 {
 	osMutexWait(stepCntMutexHandle, osWaitForever);
   uint32_t tmp = step_count;
-	osMutexWait(stepCntMutexHandle, osWaitForever);
+	osMutexRelease(stepCntMutexHandle);
   return tmp;
 }
