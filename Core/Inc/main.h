@@ -69,14 +69,6 @@ void Error_Handler(void);
 #define TXD_GPIO_Port GPIOA
 #define RXD_Pin GPIO_PIN_3
 #define RXD_GPIO_Port GPIOA
-#define SPI_NSS_Pin GPIO_PIN_4
-#define SPI_NSS_GPIO_Port GPIOA
-#define SPI_SCK_Pin GPIO_PIN_5
-#define SPI_SCK_GPIO_Port GPIOA
-#define SPI_MISO_Pin GPIO_PIN_6
-#define SPI_MISO_GPIO_Port GPIOA
-#define SPI_MOSI_Pin GPIO_PIN_7
-#define SPI_MOSI_GPIO_Port GPIOA
 #define HE_INT_Pin GPIO_PIN_0
 #define HE_INT_GPIO_Port GPIOB
 #define HE_INT_EXTI_IRQn EXTI0_IRQn
@@ -84,8 +76,8 @@ void Error_Handler(void);
 #define BEEP_GPIO_Port GPIOB
 #define HE_SCL_Pin GPIO_PIN_10
 #define HE_SCL_GPIO_Port GPIOB
-#define SE_SDA_Pin GPIO_PIN_11
-#define SE_SDA_GPIO_Port GPIOB
+#define HE_SDA_Pin GPIO_PIN_11
+#define HE_SDA_GPIO_Port GPIOB
 #define KEY_CONFIRM_Pin GPIO_PIN_11
 #define KEY_CONFIRM_GPIO_Port GPIOA
 #define KEY_PAGE_CHOOSE_Pin GPIO_PIN_12
@@ -96,8 +88,8 @@ void Error_Handler(void);
 #define SWCLK_GPIO_Port GPIOA
 #define SE_SCL_Pin GPIO_PIN_6
 #define SE_SCL_GPIO_Port GPIOB
-#define SE_SDAB7_Pin GPIO_PIN_7
-#define SE_SDAB7_GPIO_Port GPIOB
+#define SE_SDA_Pin GPIO_PIN_7
+#define SE_SDA_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
 

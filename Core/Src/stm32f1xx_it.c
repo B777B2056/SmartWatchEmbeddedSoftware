@@ -22,7 +22,6 @@
 #include "stm32f1xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-#include "max30102.h"
 #include "hc06.h"
 /* USER CODE END Includes */
 
@@ -183,12 +182,11 @@ void RTC_IRQHandler(void)
 void EXTI0_IRQHandler(void)
 {
   /* USER CODE BEGIN EXTI0_IRQn 0 */
-  MAX30102Sensor* healthy_sensor = MAX30102SensorInstance();
-  healthy_sensor->OnInterrupt(healthy_sensor);
+  
   /* USER CODE END EXTI0_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(HE_INT_Pin);
   /* USER CODE BEGIN EXTI0_IRQn 1 */
-
+  
   /* USER CODE END EXTI0_IRQn 1 */
 }
 

@@ -150,11 +150,16 @@ void FrontendRun(void const * argument)
   /* USER CODE BEGIN FrontendRun */
   bool hasComingCall = false;
   bool isAcceptComingCall = true;
+  int32_t heart_rate = 0;
+  int32_t spo2 = 0;
   // Init OLED
   OLED_Init();
+  OLED_DisplayOn();
+  OLED_ShowStartup();
+  osDelay(1000);
   // Init MAX30102
-  MAX30102Sensor* healthy_sensor = MAX30102SensorInstance();
-  // Wait bluetooth init
+  // MAX30102_Init();
+  // Wait bluetooth and ADXL345 init
   osSemaphoreWait(taskInitCountingSemHandle, osWaitForever);
   /* Infinite loop */
   for(;;)
@@ -169,12 +174,8 @@ void FrontendRun(void const * argument)
     case HEALTHY_PAGE:
       hasComingCall = false;
       // Get MAX30102's data
-      int32_t heart_rate = -1;
-      int32_t spo2 = -1;
-      if (healthy_sensor->HasInterrupt(healthy_sensor))
-      {
-        healthy_sensor->HandleInterrupt(healthy_sensor, &heart_rate, &spo2);
-      }
+      MAX30102_DoSample();
+      MAX30102_GetData(&heart_rate, &spo2);
       OLED_ShowHealthy(heart_rate, spo2);
       break;
 
@@ -185,6 +186,7 @@ void FrontendRun(void const * argument)
 
     case COMING_CALL_PAGE:
       hasComingCall = true;
+#if 1
       OLED_ShowComingCall(HC06_GetRecvedMsg(), isAcceptComingCall);
       if (KEY_ON == KeyScan(CONFIRM_KEY))
       {
@@ -193,6 +195,12 @@ void FrontendRun(void const * argument)
         // Reset call flag
         hasComingCall = false;
       }
+#else
+      OLED_ShowComingCall("15901267537", false);
+      osDelay(2000);
+      OLED_ShowComingCall("15901267537", true);
+      osDelay(2000);
+#endif
       break;
     
     default:

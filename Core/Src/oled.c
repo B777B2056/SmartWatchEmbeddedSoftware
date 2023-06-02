@@ -22,12 +22,12 @@ extern osMutexId pageSwitchMutexHandle;
 
 static void OLED_WriteCmd(uint8_t cmd)
 {
-  HAL_I2C_Mem_Write(&hi2c2, OLED_ADDR, 0x00, I2C_MEMADD_SIZE_8BIT, &cmd, 1, 0x100);
+  HAL_I2C_Mem_Write(&hi2c1, OLED_ADDR, 0x00, I2C_MEMADD_SIZE_8BIT, &cmd, 1, 0x100);
 }
 
 static void OLED_WriteChar(uint8_t data)
 {
-  HAL_I2C_Mem_Write(&hi2c2, OLED_ADDR, 0x40, I2C_MEMADD_SIZE_8BIT, &data, 1, 0x100);
+  HAL_I2C_Mem_Write(&hi2c1, OLED_ADDR, 0x40, I2C_MEMADD_SIZE_8BIT, &data, 1, 0x100);
 }
 
 static void OLED_SetPos(uint8_t x, uint8_t y)
@@ -37,9 +37,24 @@ static void OLED_SetPos(uint8_t x, uint8_t y)
 	OLED_WriteCmd((x & 0x0f) | 0x00);
 }
 
+static void OLED_ClearTargetRow(uint8_t row)
+{
+  uint8_t i, n;
+  for (i = row; i < 8; ++i)
+  {
+    OLED_WriteCmd(0xb0 + i);
+		OLED_WriteCmd(0x00);
+		OLED_WriteCmd(0x10);
+		for (n = 0; n < 128; n++)
+		{
+			OLED_WriteChar(0x00);
+		}
+  }
+}
+
 void OLED_Init()
 {
-  osDelay(100);
+  osDelay(1000);
   OLED_WriteCmd(0xAE); //display off
   OLED_WriteCmd(0x20); //Set Memory Addressing Mode
   OLED_WriteCmd(0x10); //00,Horizontal Addressing Mode;01,Vertical Addressing Mode;10,Page Addressing Mode (RESET);11,Invalid
@@ -75,17 +90,7 @@ void OLED_Init()
 
 void OLED_Clear()
 {
-  uint8_t i, n;
-	for (i = 0; i < 4; i++)
-	{
-		OLED_WriteCmd(0xb0 + i);
-		OLED_WriteCmd(0x00);
-		OLED_WriteCmd(0x10);
-		for (n = 0; n < 128; n++)
-		{
-			OLED_WriteChar(0x00);
-		}
-	}
+  OLED_ClearTargetRow(0);
 }
 
 void OLED_DisplayOn()
@@ -132,7 +137,7 @@ static void OLED_ShowAsciiString(uint8_t start_x, uint8_t start_y, const char* d
 static void OLED_ShowChineseImpl(uint8_t start_x, uint8_t start_y, const uint8_t* data, uint8_t size)
 {
   uint8_t i, j, x, y;
-  uint8_t n = size / 32;
+  uint8_t n = size / 16;
   // 显示汉字上半部分
   {
     x = start_x; y = start_y;
@@ -143,8 +148,7 @@ static void OLED_ShowChineseImpl(uint8_t start_x, uint8_t start_y, const uint8_t
       {
         OLED_WriteChar(data[16*i + j]);
       }
-      x += j;
-      CHECK_PAGE_AND_GO_NEXT(x, y);
+      x += 16;
     }
   }
   // 显示汉字下半部分
@@ -157,8 +161,7 @@ static void OLED_ShowChineseImpl(uint8_t start_x, uint8_t start_y, const uint8_t
       {
         OLED_WriteChar(data[16*i + j]);
       }
-      x += j;
-      CHECK_PAGE_AND_GO_NEXT(x, y);
+      x += 16;
     }
   }
 }
@@ -167,13 +170,11 @@ static void OLED_ShowChineseImpl(uint8_t start_x, uint8_t start_y, const uint8_t
 
 void OLED_ShowStartup()
 {
-  OLED_Clear();
   OLED_ShowChinese(0, 0, STARTUP_CHINESE);
 }
 
 void OLED_ShowShutdown()
 {
-  OLED_Clear();
   OLED_ShowChinese(0, 0, SHUTDOWN_CHINESE);
 }
 
@@ -184,41 +185,39 @@ void OLED_ShowDate()
   RTC_TimeTypeDef time;
   HAL_RTC_GetDate(&hrtc, &date, RTC_FORMAT_BIN);
   HAL_RTC_GetTime(&hrtc, &time, RTC_FORMAT_BIN);
-  // 清屏
-  OLED_Clear();
   // 显示日期：年-月-日
   char date_str[32];
-  snprintf(date_str, sizeof(date_str), "20%2hhu-%2hhu-%2hhu", date.Year, date.Month, date.Date);
+  snprintf(date_str, sizeof(date_str), "20%02d-%02d-%02d", date.Year, date.Month, date.Date);
   OLED_ShowAsciiString(0, 0, date_str);
   // 显示星期：星期X
   OLED_ShowChinese(0, 2, WEEK_CHINESE);
   OLED_ShowChinese(2*16, 2, WEEK_DAY_CHINESE[date.WeekDay-1]);
   // 显示时间：时:分:秒
   char time_str[32];
-  snprintf(time_str, sizeof(time_str), "%2hhu:%2hhu:%2hhu", time.Hours, time.Minutes, time.Seconds);
+  snprintf(time_str, sizeof(time_str), "%02d:%02d:%02d", time.Hours, time.Minutes, time.Seconds);
   OLED_ShowAsciiString(0, 4, time_str);
 }
 
 void OLED_ShowHealthy(int32_t heart_rate, int32_t spo2)
 {
-  char hr_str[5];
+  char hr_str[5] = {'\0'};
   snprintf(hr_str, sizeof(hr_str), "%ld", heart_rate);
-  char spo2_str[5];
+  char spo2_str[5] = {'\0'};
   snprintf(spo2_str, sizeof(spo2_str), "%ld%%", spo2);
-  OLED_Clear();
   // 显示心率：心率xx
   OLED_ShowChinese(0, 0, HEALTHY_CHINESE[0]);
+  OLED_ShowAsciiString(3*16, 0, " ");
   OLED_ShowAsciiString(2*16, 0, hr_str);
   // 显示血氧：血氧xx%
   OLED_ShowChinese(0, 2, HEALTHY_CHINESE[1]);
+  OLED_ShowAsciiString(3*16, 0, " ");
   OLED_ShowAsciiString(2*16, 2, spo2_str);
 }
 
 void OLED_ShowStepCnt(uint16_t step)
 {
-  char step_str[6];
-  snprintf(step_str, sizeof(step_str), "%d", step);
-  OLED_Clear();
+  char step_str[6] = {'\0'};
+  snprintf(step_str, sizeof(step_str), "%hu", step);
   // 显示计步：今日步数xxxx
   OLED_ShowChinese(0, 0, STEP_CNT_CHINESE);
   OLED_ShowAsciiString(4*16, 0, step_str);
@@ -226,9 +225,9 @@ void OLED_ShowStepCnt(uint16_t step)
 
 void OLED_ShowComingCall(const char* phone_number, bool isAcceptCall)
 {
-  OLED_Clear();
-  OLED_ShowChinese(0, 0, COMING_CALL_CHINESE);
-  OLED_ShowAsciiString(2*16, 0, phone_number);
+  OLED_ShowChinese(64-8*2, 0, COMING_CALL_CHINESE); // 2 is Chinese symbols' length
+  OLED_ShowAsciiString(20, 2, phone_number);
+  OLED_ClearTargetRow(6);
   if (isAcceptCall)
   {
     OLED_ShowChinese(0, 6, CALL_ACCEPT_CHINESE);
@@ -245,6 +244,7 @@ void OLED_ShowComingCall(const char* phone_number, bool isAcceptCall)
 
 void OLED_SetCurrentPage(PageType page)
 {
+  OLED_Clear();
   osMutexWait(pageSwitchMutexHandle, osWaitForever);
   current_page = page;
   osMutexRelease(pageSwitchMutexHandle);
@@ -260,6 +260,7 @@ PageType OLED_CurrentPage()
 
 void OLED_GoNextPage()
 {
+  OLED_Clear();
   osMutexWait(pageSwitchMutexHandle, osWaitForever);
   current_page = (current_page+1) % (PAGE_N-1); // Coming call page not show in normal
   osMutexRelease(pageSwitchMutexHandle);

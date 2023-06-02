@@ -1,145 +1,98 @@
 #include "max30102.h"
 #include "algorithm.h"
 #include "i2c.h"
+#include "main.h"
+#include "max30102_for_stm32_hal.h"
 
-#define CALCULATE_SET_N 25
+#define MAX_BRIGHTNESS 255
 
-typedef struct
+uint32_t aun_ir_buffer[500]; //IR LED sensor data
+int32_t n_ir_buffer_length;    //data length
+uint32_t aun_red_buffer[500];    //Red LED sensor data
+int32_t n_sp02; //SPO2 value 
+int8_t ch_spo2_valid;   //indicator to show if the SP02 calculation is valid 
+int32_t n_heart_rate;   //heart rate value 
+int8_t  ch_hr_valid;    //indicator to show if the heart rate calculation is valid
+uint8_t uch_dummy;
+
+uint32_t un_min, un_max, un_prev_data;  //variables to calculate the on-board LED brightness that reflects the heartbeats
+int32_t n_brightness;
+float f_temp;
+
+void MAX30102_Init()
 {
-  max30102_t _max30102;
-  int8_t init_buf_idx;
-  uint32_t ir_buffer[SAMPLE_N];
-  uint32_t red_buffer[SAMPLE_N];
+  maxim_max30102_reset(); //resets the MAX30102
+	//read and clear status register
+	maxim_max30102_read_reg(0,&uch_dummy);
+	maxim_max30102_init();  //initializes the MAX30102
 
-  uint8_t shift_flag;
-  int8_t buf_tail_write_idx;
-
-  int32_t _spo2; int8_t _spo2_valid;
-  int32_t _heart_rate; int8_t  _hr_valid;
-} MAX30102SensorPrivateMember;
-
-#define PRIVATE_MEMBER(obj) ((MAX30102SensorPrivateMember*)((obj)->_private_member))
-
-static void MAX30102SensorInit(struct MAX30102_SENSOR* obj, MAX30102SensorPrivateMember* member)
-{
-  if (!obj || !member) return;
-  
-  member->_max30102._sensor = obj;
-  member->init_buf_idx = 0;
-
-  member->shift_flag = 1;
-  member->buf_tail_write_idx = SAMPLE_N - CALCULATE_SET_N;
-
-  member->_spo2 = -1;
-  member->_spo2_valid = 0;
-  member->_heart_rate = -1;
-  member->_hr_valid = 0;
-
-  obj->_private_member = member;
-  obj->HasInterrupt = MAX30102SensorHasInterrupt;
-  obj->HandleInterrupt = MAX30102SensorHandleInterrupt;
-  obj->OnInterrupt = MAX30102SensorOnInterrupt;
-  obj->DoCalculate = MAX30102SensorDoCalculate;
-
-  max30102_init(&member->_max30102, &hi2c2);
-  // 重置MAX30102传感器
-  max30102_reset(&member->_max30102);
-  max30102_clear_fifo(&member->_max30102);
-  // 配置FIFO
-  max30102_set_fifo_config(&member->_max30102, max30102_smp_ave_8, 1, 7);
-  // 配置LED
-  max30102_set_led_pulse_width(&member->_max30102, max30102_pw_16_bit);
-  max30102_set_adc_resolution(&member->_max30102, max30102_adc_2048);
-  max30102_set_sampling_rate(&member->_max30102, max30102_sr_800);
-  max30102_set_led_current_1(&member->_max30102, 6.2);
-  max30102_set_led_current_2(&member->_max30102, 6.2);
-  // 初始化SpO2模式（）
-  max30102_set_mode(&member->_max30102, max30102_spo2);
-  // 使能FIFO_A_FULL中断
-  max30102_set_a_full(&member->_max30102, 1);
-  // 不使能温度测量
-  max30102_set_die_temp_en(&member->_max30102, 0);
-  // 不使能DIE_TEMP_RDY中断
-  max30102_set_die_temp_rdy(&member->_max30102, 0);
+	n_brightness = 0;
+	un_min = 0x3FFFF;
+	un_max = 0;
+	n_ir_buffer_length = 500; //buffer length of 100 stores 5 seconds of samples running at 100sps
+	
+	//read the first 500 samples, and determine the signal range
+  int i;
+	for(i = 0;i < n_ir_buffer_length; ++i)
+	{
+		while (1 == HAL_GPIO_ReadPin(HE_INT_GPIO_Port, HE_INT_Pin));   //wait until the interrupt pin asserts
+		maxim_max30102_read_fifo((aun_red_buffer + i), (aun_ir_buffer + i));  //read from MAX30102 FIFO
+		if (un_min > aun_red_buffer[i])
+			un_min = aun_red_buffer[i];    //update signal min
+		if (un_max < aun_red_buffer[i])
+			un_max = aun_red_buffer[i];    //update signal max
+	}
+	un_prev_data = aun_red_buffer[i];
+	//calculate heart rate and SpO2 after first 500 samples (first 5 seconds of samples)
+	maxim_heart_rate_and_oxygen_saturation(aun_ir_buffer, n_ir_buffer_length, aun_red_buffer, &n_sp02, &ch_spo2_valid, &n_heart_rate, &ch_hr_valid); 
 }
 
-MAX30102Sensor* MAX30102SensorInstance()
+void MAX30102_DoSample()
 {
-  static uint8_t flag = 0;
-  static MAX30102Sensor sensor;
-  static MAX30102SensorPrivateMember member;
-  if (!flag)
+	int i = 0;
+	un_min = 0x3FFFF;
+  un_max = 0;
+  //dumping the first 100 sets of samples in the memory and shift the last 400 sets of samples to the top
+  for (i = 100; i < 500; ++i)
   {
-    MAX30102SensorInit(&sensor, &member);
-    flag = 1;
+    aun_red_buffer[i - 100] = aun_red_buffer[i];
+    aun_ir_buffer[i - 100] = aun_ir_buffer[i];
+    //update the signal min and max
+    if (un_min > aun_red_buffer[i])
+      un_min = aun_red_buffer[i];
+    if (un_max < aun_red_buffer[i])
+      un_max = aun_red_buffer[i];
   }
-  return &sensor;
-}
-
-uint8_t MAX30102SensorHasInterrupt(struct MAX30102_SENSOR* obj)
-{
-  return max30102_has_interrupt(&PRIVATE_MEMBER(obj)->_max30102);
-}
-
-void MAX30102SensorHandleInterrupt(struct MAX30102_SENSOR* obj, int32_t* heart_rate, int32_t* spo2)
-{
-  max30102_interrupt_handler(&PRIVATE_MEMBER(obj)->_max30102);
-
-  *heart_rate = (PRIVATE_MEMBER(obj)->_hr_valid ? PRIVATE_MEMBER(obj)->_heart_rate : -1);
-  *spo2 = (PRIVATE_MEMBER(obj)->_spo2_valid ? PRIVATE_MEMBER(obj)->_spo2 : -1);
-}
-
-void MAX30102SensorOnInterrupt(struct MAX30102_SENSOR* obj)
-{
-  max30102_on_interrupt(&PRIVATE_MEMBER(obj)->_max30102);
-}
-
-void MAX30102SensorDoCalculate(struct MAX30102_SENSOR* obj)
-{
-  maxim_heart_rate_and_oxygen_saturation(PRIVATE_MEMBER(obj)->ir_buffer, SAMPLE_N, PRIVATE_MEMBER(obj)->red_buffer, &PRIVATE_MEMBER(obj)->_spo2, &PRIVATE_MEMBER(obj)->_spo2_valid, &PRIVATE_MEMBER(obj)->_heart_rate, &PRIVATE_MEMBER(obj)->_hr_valid);
-}
-
-// 覆写获取ir和red值的函数
-void max30102_plot(max30102_t* obj, uint32_t ir_sample, uint32_t red_sample)
-{
-  struct MAX30102_SENSOR* sensor = obj->_sensor;
-  if (PRIVATE_MEMBER(sensor)->init_buf_idx < SAMPLE_N)
+  //take 100 sets of samples before calculating the heart rate.
+  for(i = 400; i < 500; ++i)
   {
-    // 初始运行时先填满ir和red缓冲区
-    PRIVATE_MEMBER(sensor)->ir_buffer[PRIVATE_MEMBER(sensor)->init_buf_idx] = ir_sample;
-    PRIVATE_MEMBER(sensor)->red_buffer[PRIVATE_MEMBER(sensor)->init_buf_idx] = red_sample;
-    ++PRIVATE_MEMBER(sensor)->init_buf_idx;
-    if (SAMPLE_N == PRIVATE_MEMBER(sensor)->init_buf_idx)
-      sensor->DoCalculate(sensor); // 计算心率和血氧（第一次计算）
-  }
-  else
-  {
-    if (PRIVATE_MEMBER(sensor)->shift_flag)
+    un_prev_data = aun_red_buffer[i - 1];
+    while (1 == HAL_GPIO_ReadPin(HE_INT_GPIO_Port, HE_INT_Pin));   //wait until the interrupt pin asserts
+    maxim_max30102_read_fifo((aun_red_buffer + i), (aun_ir_buffer + i));
+    if(aun_red_buffer[i] > un_prev_data)  //just to determine the brightness of LED according to the deviation of adjacent two AD data
     {
-      // 左移（以CALCULATE_SET_N为单位进行缓冲区出队）
-      int8_t i = CALCULATE_SET_N;
-      for (; i < SAMPLE_N; ++i)
-      {
-        PRIVATE_MEMBER(sensor)->ir_buffer[i - CALCULATE_SET_N] = PRIVATE_MEMBER(sensor)->ir_buffer[i];
-        PRIVATE_MEMBER(sensor)->red_buffer[i - CALCULATE_SET_N] = PRIVATE_MEMBER(sensor)->red_buffer[i];
-      }
-      // 置标志位
-      PRIVATE_MEMBER(sensor)->shift_flag = 0;
+      f_temp = aun_red_buffer[i] - un_prev_data;
+      f_temp /= (un_max - un_min);
+      f_temp *= MAX_BRIGHTNESS;
+      n_brightness -= (int)f_temp;
+      if (n_brightness < 0)
+        n_brightness = 0;
     }
     else
     {
-      // 从buf_tail_write_idx位置开始填充缓冲区右侧（以CALCULATE_SET_N为单位进行缓冲区入队）
-      PRIVATE_MEMBER(sensor)->ir_buffer[PRIVATE_MEMBER(sensor)->buf_tail_write_idx] = ir_sample;
-      PRIVATE_MEMBER(sensor)->red_buffer[PRIVATE_MEMBER(sensor)->buf_tail_write_idx] = red_sample;
-      ++PRIVATE_MEMBER(sensor)->buf_tail_write_idx;
-      // 填充已满，重新执行缓冲区左移
-      if (SAMPLE_N == PRIVATE_MEMBER(sensor)->buf_tail_write_idx)
-      {
-        PRIVATE_MEMBER(sensor)->buf_tail_write_idx = SAMPLE_N - CALCULATE_SET_N;
-        PRIVATE_MEMBER(sensor)->shift_flag = 1;
-        // 计算心率和血氧（第一次计算）
-        sensor->DoCalculate(sensor);
-      }
+      f_temp = un_prev_data - aun_red_buffer[i];
+      f_temp /= (un_max - un_min);
+      f_temp *= MAX_BRIGHTNESS;
+      n_brightness += (int)f_temp;
+      if (n_brightness > MAX_BRIGHTNESS)
+        n_brightness = MAX_BRIGHTNESS;
     }
   }
+  maxim_heart_rate_and_oxygen_saturation(aun_ir_buffer, n_ir_buffer_length, aun_red_buffer, &n_sp02, &ch_spo2_valid, &n_heart_rate, &ch_hr_valid); 
+}
+
+void MAX30102_GetData(int32_t* hr, int32_t* spo2)
+{
+  *hr = ch_hr_valid ? n_heart_rate : 0;
+  *spo2 = ch_spo2_valid ? n_sp02 : 0;
 }
