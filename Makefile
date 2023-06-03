@@ -37,6 +37,8 @@ BUILD_DIR = build
 # C sources
 C_SOURCES =  \
 Core/Src/main.c \
+Drivers/Hardware/OLED/oled_hal.c \
+Drivers/Hardware/ADXL345/adxl345_hal.c \
 Drivers/Hardware/MAX30102/max30102_for_stm32_hal.c \
 Drivers/Hardware/MAX30102/algorithm.c \
 Core/Src/max30102.c \
@@ -146,7 +148,8 @@ C_INCLUDES =  \
 -IDrivers/CMSIS/Device/ST/STM32F1xx/Include \
 -IDrivers/CMSIS/Include \
 -IDrivers/Hardware/OLED \
--IDrivers/Hardware/MAX30102
+-IDrivers/Hardware/MAX30102 \
+-IDrivers/Hardware/ADXL345
 
 
 # compile gcc flags
