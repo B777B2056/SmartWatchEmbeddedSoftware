@@ -160,11 +160,14 @@ void FrontendRun(void const * argument)
   OLED_Init(&oled_obj);
   OLED_DisplayOn();
   OLED_ShowStartup();
-  osDelay(1000);
   // Init MAX30102
   MAX30102_Init(&max30102_obj);
+  // Init ADXL345
+  ADXL345_Init(&adxl345_obj);
+  // Init HC-06
+  HC06_Init(&hc06_obj);
   // Wait bluetooth and ADXL345 init
-  osSemaphoreWait(taskInitCountingSemHandle, osWaitForever);
+  osSemaphoreRelease(taskInitCountingSemHandle);
   /* Infinite loop */
   OLED_Clear();
   for(;;)
@@ -230,11 +233,7 @@ void FrontendRun(void const * argument)
 void BackendRun(void const * argument)
 {
   /* USER CODE BEGIN BackendRun */
-  // Init ADXL345
-  ADXL345_Init(&adxl345_obj);
-  // Init HC-06
-  HC06_Init(&hc06_obj);
-  osSemaphoreRelease(taskInitCountingSemHandle);
+  osSemaphoreWait(taskInitCountingSemHandle, osWaitForever);
   /* Infinite loop */
   for(;;)
   {

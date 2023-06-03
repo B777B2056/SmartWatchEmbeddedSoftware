@@ -43,7 +43,7 @@ static float CalculateACCStd(adxl345_t* obj)
 void ADXL345_Init(adxl345_t* obj)
 {
   obj->step_count = obj->acc_buf_cur_idx = 0;
-  osDelay(1000);
+  osDelay(100);
   ADXL345_Driver_Init(&hi2c2);
 }
 

@@ -11,7 +11,6 @@ typedef struct
   float acc_buffer[ACC_BUFFER_LEN];
 } adxl345_t;
 
-
 void ADXL345_Init(adxl345_t* obj);
 void ADXL345_DoStepCnt(adxl345_t* obj);
 uint32_t ADXL345_GetSteps(adxl345_t* obj);
