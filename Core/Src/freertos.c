@@ -158,10 +158,11 @@ void FrontendRun(void const * argument)
   OLED_ShowStartup();
   osDelay(1000);
   // Init MAX30102
-  // MAX30102_Init();
+  MAX30102_Init();
   // Wait bluetooth and ADXL345 init
   osSemaphoreWait(taskInitCountingSemHandle, osWaitForever);
   /* Infinite loop */
+  OLED_Clear();
   for(;;)
   {
     switch (OLED_CurrentPage())
@@ -186,7 +187,6 @@ void FrontendRun(void const * argument)
 
     case COMING_CALL_PAGE:
       hasComingCall = true;
-#if 1
       OLED_ShowComingCall(HC06_GetRecvedMsg(), isAcceptComingCall);
       if (KEY_ON == KeyScan(CONFIRM_KEY))
       {
@@ -195,12 +195,6 @@ void FrontendRun(void const * argument)
         // Reset call flag
         hasComingCall = false;
       }
-#else
-      OLED_ShowComingCall("15901267537", false);
-      osDelay(2000);
-      OLED_ShowComingCall("15901267537", true);
-      osDelay(2000);
-#endif
       break;
     
     default:
