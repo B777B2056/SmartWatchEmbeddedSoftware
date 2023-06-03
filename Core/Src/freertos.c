@@ -31,6 +31,7 @@
 #include "adxl345.h"
 #include "gpio.h"
 #include <stdbool.h>
+#include <string.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -50,7 +51,10 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
-
+adxl345_t adxl345_obj;
+oled_t oled_obj;
+max30102_t max30102_obj;
+hc06_t hc06_obj;
 /* USER CODE END Variables */
 osThreadId frontendTaskHandle;
 osThreadId backendTaskHandle;
@@ -153,19 +157,19 @@ void FrontendRun(void const * argument)
   int32_t heart_rate = 0;
   int32_t spo2 = 0;
   // Init OLED
-  OLED_Init();
+  OLED_Init(&oled_obj);
   OLED_DisplayOn();
   OLED_ShowStartup();
   osDelay(1000);
   // Init MAX30102
-  MAX30102_Init();
+  MAX30102_Init(&max30102_obj);
   // Wait bluetooth and ADXL345 init
   osSemaphoreWait(taskInitCountingSemHandle, osWaitForever);
   /* Infinite loop */
   OLED_Clear();
   for(;;)
   {
-    switch (OLED_CurrentPage())
+    switch (OLED_CurrentPage(&oled_obj))
     {
     case DATE_PAGE:
       hasComingCall = false;
@@ -175,23 +179,23 @@ void FrontendRun(void const * argument)
     case HEALTHY_PAGE:
       hasComingCall = false;
       // Get MAX30102's data
-      MAX30102_DoSample();
-      MAX30102_GetData(&heart_rate, &spo2);
+      MAX30102_DoSample(&max30102_obj);
+      MAX30102_GetData(&max30102_obj, &heart_rate, &spo2);
       OLED_ShowHealthy(heart_rate, spo2);
       break;
 
     case STEP_CNT_PAGE:
       hasComingCall = false;
-      OLED_ShowStepCnt(ADXL345_GetSteps());
+      OLED_ShowStepCnt(ADXL345_GetSteps(&adxl345_obj));
       break;
 
     case COMING_CALL_PAGE:
       hasComingCall = true;
-      OLED_ShowComingCall(HC06_GetRecvedMsg(), isAcceptComingCall);
+      OLED_ShowComingCall(HC06_GetRecvedMsg(&hc06_obj), isAcceptComingCall);
       if (KEY_ON == KeyScan(CONFIRM_KEY))
       {
         // Notify bluetooth to do work
-        HC06_ComingCallOption(isAcceptComingCall);
+        HC06_ComingCallOption(&hc06_obj, isAcceptComingCall);
         // Reset call flag
         hasComingCall = false;
       }
@@ -206,7 +210,7 @@ void FrontendRun(void const * argument)
     if (KEY_ON == KeyScan(PAGE_CHOOSE_KEY))
     {
       if (!hasComingCall)
-        OLED_GoNextPage();
+        OLED_GoNextPage(&oled_obj);
       else
         isAcceptComingCall = !isAcceptComingCall;
     }
@@ -227,21 +231,21 @@ void BackendRun(void const * argument)
 {
   /* USER CODE BEGIN BackendRun */
   // Init ADXL345
-  ADXL345_Init();
+  ADXL345_Init(&adxl345_obj);
   // Init HC-06
-  HC06_WaitMsg();
+  HC06_Init(&hc06_obj);
   osSemaphoreRelease(taskInitCountingSemHandle);
   /* Infinite loop */
   for(;;)
   {
     // Call coming
-    if (HC06_IsNewMsgRecved())
-      OLED_SetCurrentPage(COMING_CALL_PAGE);
+    if (HC06_IsNewMsgRecved(&hc06_obj))
+      OLED_SetCurrentPage(&oled_obj, COMING_CALL_PAGE);
     // Call cancel
-    if (HC06_ComingCallIsHangupByPeer())
-      OLED_SetCurrentPage(DATE_PAGE);
+    if (HC06_ComingCallIsHangupByPeer(&hc06_obj))
+      OLED_SetCurrentPage(&oled_obj, DATE_PAGE);
     // Count steps
-    ADXL345_DoStepCnt();
+    ADXL345_DoStepCnt(&adxl345_obj);
     osDelay(50);
   }
   /* USER CODE END BackendRun */
@@ -249,6 +253,20 @@ void BackendRun(void const * argument)
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
-
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+  if (hc06_obj.rx_buffer_write_pos >= MSG_SIZE)  return; // 缓冲区满
+    hc06_obj.has_new_msg = (MSG_END_DELIMITER == hc06_obj.ch_buffer);
+  if (hc06_obj.has_new_msg)
+  {
+    memcpy(hc06_obj.current_msg, hc06_obj.rx_buffer, hc06_obj.rx_buffer_write_pos);
+    hc06_obj.current_msg[hc06_obj.rx_buffer_write_pos] = '\0';
+    hc06_obj.rx_buffer_write_pos = 0;
+  }
+  else
+  {
+    hc06_obj.rx_buffer[hc06_obj.rx_buffer_write_pos++] = hc06_obj.ch_buffer;
+  }
+}
 /* USER CODE END Application */
 

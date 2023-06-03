@@ -13,16 +13,15 @@
 #define OLED_CENTERED_POS(CHINESE_N, ASCII_N) \
   (((OLED_WIDTH)-((ASCII_SYMBOL_WIDTH)*(ASCII_N))-((CHINESE_SYMBOL_WIDTH)*(CHINESE_N)))/2)
 
-PageType current_page;
 extern osMutexId pageSwitchMutexHandle;
 
-void OLED_Init()
+void OLED_Init(oled_t* obj)
 {
   osDelay(1000);
   OLED_Driver_Init(&hi2c1);
   OLED_Clear();
   OLED_Driver_SetPos(0, 0);
-  OLED_SetCurrentPage(DATE_PAGE);
+  OLED_SetCurrentPage(obj, DATE_PAGE);
 }
 
 void OLED_Clear()
@@ -151,26 +150,26 @@ void OLED_ShowComingCall(const char* phone_number, bool isAcceptCall)
   }
 }
 
-void OLED_SetCurrentPage(PageType page)
+void OLED_SetCurrentPage(oled_t* obj, PageType page)
 {
   OLED_Clear();
   osMutexWait(pageSwitchMutexHandle, osWaitForever);
-  current_page = page;
+  obj->current_page = page;
   osMutexRelease(pageSwitchMutexHandle);
 }
 
-PageType OLED_CurrentPage()
+PageType OLED_CurrentPage(oled_t* obj)
 {
   osMutexWait(pageSwitchMutexHandle, osWaitForever);
-  PageType tmp = current_page;
+  PageType tmp = obj->current_page;
   osMutexRelease(pageSwitchMutexHandle);
   return tmp;
 }
 
-void OLED_GoNextPage()
+void OLED_GoNextPage(oled_t* obj)
 {
   OLED_Clear();
   osMutexWait(pageSwitchMutexHandle, osWaitForever);
-  current_page = (current_page+1) % (PAGE_N-1); // Coming call page not show in normal
+  obj->current_page = (obj->current_page+1) % (PAGE_N-1); // Coming call page not show in normal
   osMutexRelease(pageSwitchMutexHandle);
 }
