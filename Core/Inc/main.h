@@ -92,7 +92,7 @@ void Error_Handler(void);
 #define SE_SDA_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
-
+#define JR_DEBUG
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

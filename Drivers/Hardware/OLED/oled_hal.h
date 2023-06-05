@@ -19,6 +19,7 @@ void OLED_Driver_WriteCmd(uint8_t cmd);
 void OLED_Driver_WriteChar(uint8_t data);
 void OLED_Driver_SetPos(uint8_t x, uint8_t y);
 void OLED_Driver_ClearTargetRow(uint8_t row);
+void OLED_Driver_ClearTargetRowBelow(uint8_t row);
 
 void OLED_Driver_ShowAsciiChar(uint8_t start_x, uint8_t start_y, unsigned char ch);
 void OLED_Driver_ShowAsciiString(uint8_t start_x, uint8_t start_y, const char* data);

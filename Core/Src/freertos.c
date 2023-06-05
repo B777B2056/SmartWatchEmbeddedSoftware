@@ -32,6 +32,7 @@
 #include "gpio.h"
 #include <stdbool.h>
 #include <string.h>
+#include <stdio.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -52,15 +53,14 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
 adxl345_t adxl345_obj;
-oled_t oled_obj;
+screen_manager_t screen_obj;
 max30102_t max30102_obj;
 hc06_t hc06_obj;
+coming_call_handler_t coming_call_handler_obj;
 /* USER CODE END Variables */
 osThreadId frontendTaskHandle;
 osThreadId backendTaskHandle;
-osMutexId pageSwitchMutexHandle;
 osMutexId stepCntMutexHandle;
-osSemaphoreId taskInitCountingSemHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -98,10 +98,6 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE END Init */
   /* Create the mutex(es) */
-  /* definition and creation of pageSwitchMutex */
-  osMutexDef(pageSwitchMutex);
-  pageSwitchMutexHandle = osMutexCreate(osMutex(pageSwitchMutex));
-
   /* definition and creation of stepCntMutex */
   osMutexDef(stepCntMutex);
   stepCntMutexHandle = osMutexCreate(osMutex(stepCntMutex));
@@ -109,11 +105,6 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
   /* USER CODE END RTOS_MUTEX */
-
-  /* Create the semaphores(s) */
-  /* definition and creation of taskInitCountingSem */
-  osSemaphoreDef(taskInitCountingSem);
-  taskInitCountingSemHandle = osSemaphoreCreate(osSemaphore(taskInitCountingSem), 1);
 
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
@@ -152,74 +143,42 @@ void MX_FREERTOS_Init(void) {
 void FrontendRun(void const * argument)
 {
   /* USER CODE BEGIN FrontendRun */
-  bool hasComingCall = false;
-  bool isAcceptComingCall = true;
-  int32_t heart_rate = 0;
-  int32_t spo2 = 0;
-  // Init OLED
-  OLED_Init(&oled_obj);
-  OLED_DisplayOn();
-  OLED_ShowStartup();
-  // Init MAX30102
-  MAX30102_Init(&max30102_obj);
-  // Init ADXL345
-  ADXL345_Init(&adxl345_obj);
-  // Init HC-06
-  HC06_Init(&hc06_obj);
-  // Wait bluetooth and ADXL345 init
-  osSemaphoreRelease(taskInitCountingSemHandle);
+#ifdef JR_DEBUG
+  int i = 1;
+#endif
+  osDelay(1000);
+  Screen_Clear();
   /* Infinite loop */
-  OLED_Clear();
   for(;;)
   {
-    switch (OLED_CurrentPage(&oled_obj))
+    ScreenManager_ShowCurrentPage(&screen_obj);
+    // Call coming
+    if (ComingCallHandler_IsNewCallComing(&coming_call_handler_obj))
     {
-    case DATE_PAGE:
-      hasComingCall = false;
-      OLED_ShowDate();
-      break;
-
-    case HEALTHY_PAGE:
-      hasComingCall = false;
-      // Get MAX30102's data
-      MAX30102_DoSample(&max30102_obj);
-      MAX30102_GetData(&max30102_obj, &heart_rate, &spo2);
-      OLED_ShowHealthy(heart_rate, spo2);
-      break;
-
-    case STEP_CNT_PAGE:
-      hasComingCall = false;
-      OLED_ShowStepCnt(ADXL345_GetSteps(&adxl345_obj));
-      break;
-
-    case COMING_CALL_PAGE:
-      hasComingCall = true;
-      OLED_ShowComingCall(HC06_GetRecvedMsg(&hc06_obj), isAcceptComingCall);
-      if (KEY_ON == KeyScan(CONFIRM_KEY))
-      {
-        // Notify bluetooth to do work
-        HC06_ComingCallOption(&hc06_obj, isAcceptComingCall);
-        // Reset call flag
-        hasComingCall = false;
-      }
-      break;
-    
-    default:
-      hasComingCall = false;
-      OLED_ShowDate();
-      break;
+      ScreenManager_GoComingCallPage(&screen_obj);
+    }
+    // Call cancel
+    if (ComingCallHandler_IsHangupByPeer(&coming_call_handler_obj))
+    {
+      ScreenManager_RecoverFromComingCall(&screen_obj);
     }
     // Detect and switch to next page
+#ifndef JR_DEBUG
     if (KEY_ON == KeyScan(PAGE_CHOOSE_KEY))
+#else
+    if (i%100 == 0)
+#endif
     {
-      if (!hasComingCall)
-        OLED_GoNextPage(&oled_obj);
+      if (!screen_obj.is_in_coming_call)
+        ScreenManager_GoNextPage(&screen_obj);
       else
-        isAcceptComingCall = !isAcceptComingCall;
+        screen_obj.coming_call_page.is_accept_call = !screen_obj.coming_call_page.is_accept_call;
     }
-    osDelay(50);
+#ifdef JR_DEBUG
+    ++i;
+#endif
   }
-  OLED_DisplayOff();
+  ScreenManager_Dtor(&screen_obj);
   /* USER CODE END FrontendRun */
 }
 
@@ -233,39 +192,66 @@ void FrontendRun(void const * argument)
 void BackendRun(void const * argument)
 {
   /* USER CODE BEGIN BackendRun */
-  osSemaphoreWait(taskInitCountingSemHandle, osWaitForever);
   /* Infinite loop */
   for(;;)
   {
-    // Call coming
-    if (HC06_IsNewMsgRecved(&hc06_obj))
-      OLED_SetCurrentPage(&oled_obj, COMING_CALL_PAGE);
-    // Call cancel
-    if (HC06_ComingCallIsHangupByPeer(&hc06_obj))
-      OLED_SetCurrentPage(&oled_obj, DATE_PAGE);
     // Count steps
+#ifndef JR_DEBUG
     ADXL345_DoStepCnt(&adxl345_obj);
-    osDelay(50);
+#endif
   }
   /* USER CODE END BackendRun */
 }
 
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
+void HardWare_Init()
+{
+  // Init Screen
+  ScreenManager_Ctor(&screen_obj);
+  // Init MAX30102
+  MAX30102_Init(&max30102_obj);
+  // Init ADXL345
+#ifndef JR_DEBUG
+  ADXL345_Init(&adxl345_obj);
+#endif
+  // Init HC-06
+  HC06_Init(&hc06_obj);
+  // Init Coming call handler
+  ComingCallHandler_Init(&coming_call_handler_obj, &hc06_obj);
+}
+
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-  if (hc06_obj.rx_buffer_write_pos >= MSG_SIZE)  return; // 缓冲区满
-    hc06_obj.has_new_msg = (MSG_END_DELIMITER == hc06_obj.ch_buffer);
-  if (hc06_obj.has_new_msg)
+  uint8_t msg_len;
+  char msg[MSG_SIZE];
+  switch (HC06_HandleMsg(&hc06_obj, msg, &msg_len))
   {
-    memcpy(hc06_obj.current_msg, hc06_obj.rx_buffer, hc06_obj.rx_buffer_write_pos);
-    hc06_obj.current_msg[hc06_obj.rx_buffer_write_pos] = '\0';
-    hc06_obj.rx_buffer_write_pos = 0;
+  case MSG_TYPE_COMING_CALL_NOTIFY:
+
+    ComingCallHandler_NewCallNotify(&coming_call_handler_obj, msg, msg_len);
+    break;
+
+  case MSG_TYPE_CALL_HANGUP_NOTIFY:
+    ComingCallHandler_PeerHangupNotify(&coming_call_handler_obj);
+    break;
+  
+  case MSG_TYPE_NOT_COMPLETED:
+  default:
+    break;
   }
-  else
-  {
-    hc06_obj.rx_buffer[hc06_obj.rx_buffer_write_pos++] = hc06_obj.ch_buffer;
-  }
+}
+
+#ifdef __GNUC__
+#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
+#else
+#define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
+#endif
+// 重定向printf到串口USART2（蓝牙）
+PUTCHAR_PROTOTYPE
+{
+    HC06_SendString(&hc06_obj, (char*)&ch, 1);
+    return ch;
 }
 /* USER CODE END Application */
 

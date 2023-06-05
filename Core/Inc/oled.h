@@ -1,33 +1,96 @@
 #ifndef __OLED_H__
 #define __OLED_H__
+#include "rtc.h"
 #include <stdint.h>
 #include <stdbool.h>
 
-typedef uint8_t PageType;
+#define FUNCTIONAL_PAGE_N 3
 
-#define DATE_PAGE 0
-#define HEALTHY_PAGE 1
-#define STEP_CNT_PAGE 2
-#define COMING_CALL_PAGE 3
-#define PAGE_N 4
+void Screen_Clear();
+
+struct SCREEN_VTABLE;
 
 typedef struct
 {
-  PageType current_page;
-} oled_t;
+  struct SCREEN_VTABLE* vptr; // ptr to virtual table
 
-void OLED_Init(oled_t* obj);                                                             // OLED初始化
-void OLED_Clear();                                                            // OLED清屏
-void OLED_DisplayOn();                                                        // OLED开启
-void OLED_DisplayOff();                                                       // OLED关闭
-void OLED_ShowStartup();                                                      // 开机界面：显示开机画面
-void OLED_ShowShutdown();                                                     // 关机界面：显示关机画面
-void OLED_ShowDate();                                                         // 主界面：显示当前日期和时间
-void OLED_ShowHealthy(int32_t heart_rate, int32_t spo2);                    // 健康界面：显示当前心率和血氧
-void OLED_ShowStepCnt(uint16_t step);                                       // 计步界面：显示今日当前步数
-void OLED_ShowComingCall(const char* phone_number, bool isAcceptCall);      // 来电通知：显示当前来电号码，与接听选项（接听/拒接）
-void OLED_SetCurrentPage(oled_t* obj, PageType page);
-PageType OLED_CurrentPage(oled_t* obj);
-void OLED_GoNextPage(oled_t* obj);
+  bool is_showed_before;
+} screen_abstract_t;
+
+void ScreenAbstract_Ctor(screen_abstract_t* this);
+void ScreenAbstract_Show(screen_abstract_t* this);
+void ScreenAbstract_FirstShow(screen_abstract_t* this);
+void ScreenAbstract_RefreshShow(screen_abstract_t* this);
+
+/* Virtual tabel */
+typedef struct SCREEN_VTABLE
+{
+  void (*first_show)(screen_abstract_t* this); // first show page on screen
+  void (*refresh_show)(screen_abstract_t* this); // show page on screen
+} screen_vtabel;
+
+typedef struct
+{
+  screen_abstract_t parent;
+
+  char date_str[32];
+  char time_str[16];
+  RTC_DateTypeDef date;
+  RTC_TimeTypeDef time;
+} screen_date_t;
+
+void ScreenDate_Ctor(screen_date_t* this);
+
+typedef struct
+{
+  screen_abstract_t parent;
+
+  int32_t heart_rate;
+  int32_t spo2;
+  char hr_str[10];
+  char spo2_str[6];
+} screen_healthy_t;
+
+void ScreenHealthy_Ctor(screen_healthy_t* this);
+
+typedef struct
+{
+  screen_abstract_t parent;
+
+  char step_str[6];
+  char calories_str[8];
+} screen_pedometer_t;
+
+void ScreenPedometer_Ctor(screen_pedometer_t* this);
+
+typedef struct
+{
+  screen_abstract_t parent;
+
+  char* peer_name;
+  bool is_accept_call;
+} screen_coming_call_t;
+
+void ScreenComingcall_Ctor(screen_coming_call_t* this);
+
+typedef struct
+{
+  screen_date_t date_page;
+  screen_healthy_t healthy_page;
+  screen_pedometer_t pedometer_page;
+  screen_coming_call_t coming_call_page;
+
+  screen_abstract_t* pages[FUNCTIONAL_PAGE_N+1];
+  uint8_t current_page_idx;
+  screen_abstract_t* current_page;
+  bool is_in_coming_call;
+} screen_manager_t;
+
+void ScreenManager_Ctor(screen_manager_t* this);
+void ScreenManager_Dtor(screen_manager_t* this);
+void ScreenManager_ShowCurrentPage(screen_manager_t* this);
+void ScreenManager_GoNextPage(screen_manager_t* this);
+void ScreenManager_GoComingCallPage(screen_manager_t* this);
+void ScreenManager_RecoverFromComingCall(screen_manager_t* this);
 
 #endif

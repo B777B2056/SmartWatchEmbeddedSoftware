@@ -257,16 +257,22 @@ void OLED_Driver_SetPos(uint8_t x, uint8_t y)
 
 void OLED_Driver_ClearTargetRow(uint8_t row)
 {
-  uint8_t i, n;
+  OLED_Driver_WriteCmd(0xb0 + row);
+  OLED_Driver_WriteCmd(0x00);
+  OLED_Driver_WriteCmd(0x10);
+  uint8_t i;
+  for (i = 0; i < OLED_WIDTH; ++i)
+  {
+    OLED_Driver_WriteChar(0x00);
+  }
+}
+
+void OLED_Driver_ClearTargetRowBelow(uint8_t row)
+{
+  uint8_t i;
   for (i = row; i < OLED_HEIGHT; ++i)
   {
-    OLED_Driver_WriteCmd(0xb0 + i);
-		OLED_Driver_WriteCmd(0x00);
-		OLED_Driver_WriteCmd(0x10);
-		for (n = 0; n < OLED_WIDTH; n++)
-		{
-			OLED_Driver_WriteChar(0x00);
-		}
+    OLED_Driver_ClearTargetRow(i);
   }
 }
 

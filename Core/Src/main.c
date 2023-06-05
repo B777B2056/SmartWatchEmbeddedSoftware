@@ -54,23 +54,12 @@
 void SystemClock_Config(void);
 void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
-
+void HardWare_Init();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-#ifdef __GNUC__
-#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
-#else
-#define PUTCHAR_PROTOTYPE int fputc(int ch, FILE *f)
-#endif
-// 重定向printf到串口USART2（蓝牙）
-PUTCHAR_PROTOTYPE
-{
-    while ((USART2->SR & 0X40) == 0);
-    USART2->DR = (uint8_t) ch;
-    return ch;
-}
+
 /* USER CODE END 0 */
 
 /**
@@ -106,7 +95,8 @@ int main(void)
   MX_USART2_UART_Init();
   MX_RTC_Init();
   /* USER CODE BEGIN 2 */
-
+  HAL_Delay(1000);
+  HardWare_Init();
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in freertos.c) */

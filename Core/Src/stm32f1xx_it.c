@@ -214,7 +214,7 @@ void USART2_IRQHandler(void)
   /* USER CODE END USART2_IRQn 0 */
   HAL_UART_IRQHandler(&huart2);
   /* USER CODE BEGIN USART2_IRQn 1 */
-  HC06_WaitMsg(&hc06_obj);
+
   /* USER CODE END USART2_IRQn 1 */
 }
 

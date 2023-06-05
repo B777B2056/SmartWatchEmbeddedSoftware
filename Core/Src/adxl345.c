@@ -1,8 +1,8 @@
 #include "adxl345.h"
+#include "cmsis_os.h"
 #include "main.h"
 #include "i2c.h"
 #include "rtc.h"
-#include "cmsis_os.h"
 #include "adxl345_hal.h"
 #include <stdbool.h>
 #include <math.h>
@@ -43,7 +43,6 @@ static float CalculateACCStd(adxl345_t* obj)
 void ADXL345_Init(adxl345_t* obj)
 {
   obj->step_count = obj->acc_buf_cur_idx = 0;
-  osDelay(100);
   ADXL345_Driver_Init(&hi2c2);
 }
 
