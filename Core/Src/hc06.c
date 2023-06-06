@@ -10,7 +10,9 @@ static void HC06_WaitMsg(hc06_t* obj)
 
 void HC06_Init(hc06_t* obj)
 {
+  obj->msg_type = MSG_TYPE_NOT_COMPLETED;
   obj->msg_len = 0;
+  obj->msg_status = MSG_STATUS_ON_HEADER_TYPE;
   obj->rx_buffer_write_pos = 0;
   HC06_WaitMsg(obj);
 }
@@ -24,27 +26,41 @@ void HC06_SendString(hc06_t* obj, const char* str, uint16_t size)
   }
 }
 
-uint8_t HC06_HandleMsg(hc06_t* obj, char* msg, uint8_t* msg_len)
+uint8_t HC06_HandleMsg(hc06_t* obj)
 {
   uint8_t msg_type = MSG_TYPE_NOT_COMPLETED;
-  if (0 == obj->msg_len)
+  switch (obj->msg_status)
   {
-    // Receive package header: body length
+  case MSG_STATUS_ON_HEADER_TYPE:
+    obj->msg_type = obj->ch_buffer;
+    obj->msg_status = MSG_STATUS_ON_HEADER_LENGTH;
+    break;
+
+  case MSG_STATUS_ON_HEADER_LENGTH:
     obj->msg_len = obj->ch_buffer;
-  }
-  else
-  {
-    // Receive package body
-    obj->rx_buffer[obj->rx_buffer_write_pos++] = obj->ch_buffer;
-    --obj->msg_len;
-    // Body received
     if (0 == obj->msg_len)
     {
-      msg_type = obj->rx_buffer[0];
-      *msg_len = obj->rx_buffer_write_pos;
-      memcpy(msg, obj->rx_buffer+1, *msg_len);
-      obj->rx_buffer_write_pos = 0;
+      msg_type = obj->msg_type;
+      obj->msg_status = MSG_STATUS_ON_HEADER_TYPE;
     }
+    else
+    {
+      obj->msg_status = MSG_STATUS_ON_BODY_RECV;
+    }
+    break;
+
+  case MSG_STATUS_ON_BODY_RECV:
+    obj->rx_buffer[obj->rx_buffer_write_pos++] = obj->ch_buffer;
+    if (obj->rx_buffer_write_pos == obj->msg_len)
+    {
+      msg_type = obj->msg_type;
+      obj->rx_buffer_write_pos = 0;
+      obj->msg_status = MSG_STATUS_ON_HEADER_TYPE;
+    }
+    break;
+  
+  default:
+    break;
   }
   HC06_WaitMsg(obj);
   return msg_type;
@@ -70,11 +86,11 @@ bool ComingCallHandler_IsNewCallComing(coming_call_handler_t* this)
     return false;
 }
 
-void ComingCallHandler_NewCallNotify(coming_call_handler_t* this, const char* msg, uint8_t msg_len)
+void ComingCallHandler_NewCallNotify(coming_call_handler_t* this)
 {
   memset(this->content, 0, sizeof(this->content));
-  memcpy(this->content, msg, msg_len);
-  this->content[msg_len] = '\0';
+  memcpy(this->content, this->p_driver->rx_buffer, this->p_driver->msg_len);
+  this->content[this->p_driver->msg_len] = '\0';
   this->has_new_msg = true;
   this->is_hangup = false;
 }

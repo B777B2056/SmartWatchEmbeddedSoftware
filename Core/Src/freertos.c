@@ -223,13 +223,11 @@ void HardWare_Init()
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
-  uint8_t msg_len;
-  char msg[MSG_SIZE];
-  switch (HC06_HandleMsg(&hc06_obj, msg, &msg_len))
+  switch (HC06_HandleMsg(&hc06_obj))
   {
   case MSG_TYPE_COMING_CALL_NOTIFY:
 
-    ComingCallHandler_NewCallNotify(&coming_call_handler_obj, msg, msg_len);
+    ComingCallHandler_NewCallNotify(&coming_call_handler_obj);
     break;
 
   case MSG_TYPE_CALL_HANGUP_NOTIFY:

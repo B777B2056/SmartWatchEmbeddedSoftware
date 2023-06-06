@@ -1,12 +1,12 @@
 #include "oled.h"
 #include "i2c.h"
 #include "gpio.h"
-#include "hc06.h"
-#include "max30102.h"
-#include "adxl345.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+#include "hc06.h"
+#include "max30102.h"
+#include "adxl345.h"
 #include "oled_hal.h"
 #include "oledfont.h"
 #include "oledimg.h"
