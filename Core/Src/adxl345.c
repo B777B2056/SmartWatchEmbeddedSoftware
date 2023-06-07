@@ -23,9 +23,9 @@ static bool IsNewDayStarted()
 
 static void ADXL345_ResetStepCnt(adxl345_t* obj)
 {
-  osMutexWait(stepCntMutexHandle, osWaitForever);
+  // osMutexWait(stepCntMutexHandle, osWaitForever);
   obj->step_count = 0;
-	osMutexRelease(stepCntMutexHandle);
+	// osMutexRelease(stepCntMutexHandle);
 }
 
 static float CalculateACCStd(adxl345_t* obj)
@@ -75,15 +75,15 @@ void ADXL345_DoStepCnt(adxl345_t* obj)
     }
   }
   // Calculate step number
-  osMutexWait(stepCntMutexHandle, osWaitForever);
+  // osMutexWait(stepCntMutexHandle, osWaitForever);
   obj->step_count += peak_cnt;
-  osMutexRelease(stepCntMutexHandle);
+  // osMutexRelease(stepCntMutexHandle);
 }
 
 uint32_t ADXL345_GetSteps(adxl345_t* obj)
 {
-	osMutexWait(stepCntMutexHandle, osWaitForever);
+	// osMutexWait(stepCntMutexHandle, osWaitForever);
   uint32_t tmp = obj->step_count;
-	osMutexRelease(stepCntMutexHandle);
+	// osMutexRelease(stepCntMutexHandle);
   return tmp;
 }

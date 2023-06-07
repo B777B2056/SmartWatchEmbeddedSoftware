@@ -57,10 +57,11 @@
 *******************************************************************************
 */
 #include "algorithm.h"
+#include <stdlib.h>
 
 #define true 1
 #define false 0
-#define FS 100
+#define FS 10
 #define BUFFER_SIZE  (FS* 5) 
 #define HR_FIFO_SIZE 7
 #define MA4_SIZE  4 // DO NOT CHANGE
@@ -79,9 +80,9 @@ const uint8_t uch_spo2_table[184]={ 95, 95, 95, 96, 96, 96, 97, 97, 97, 97, 97, 
                             49, 48, 47, 46, 45, 44, 43, 42, 41, 40, 39, 38, 37, 36, 35, 34, 33, 31, 30, 29, 
                             28, 27, 26, 25, 23, 22, 21, 20, 19, 17, 16, 15, 14, 12, 11, 10, 9, 7, 6, 5, 
                             3, 2, 1 } ;
-static  int32_t an_dx[ BUFFER_SIZE-MA4_SIZE]; // delta
-static  int32_t an_x[ BUFFER_SIZE]; //ir
-static  int32_t an_y[ BUFFER_SIZE]; //red
+static  int32_t an_dx[BUFFER_SIZE-MA4_SIZE]; // delta
+static  int32_t an_x[BUFFER_SIZE]; //ir
+static  int32_t an_y[BUFFER_SIZE]; //red
 
 void maxim_heart_rate_and_oxygen_saturation(uint32_t *pun_ir_buffer,  int32_t n_ir_buffer_length, uint32_t *pun_red_buffer, int32_t *pn_spo2, int8_t *pch_spo2_valid, 
                               int32_t *pn_heart_rate, int8_t  *pch_hr_valid)

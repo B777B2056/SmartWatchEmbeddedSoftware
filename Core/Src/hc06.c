@@ -1,6 +1,5 @@
 #include "hc06.h"
 #include <string.h>
-#include <stdio.h>
 #include "usart.h"
 
 static void HC06_WaitMsg(hc06_t* obj)
@@ -99,6 +98,7 @@ void ComingCallHandler_PeerHangupNotify(coming_call_handler_t* this)
 {
   this->has_new_msg = false;
   this->is_hangup = true;
+  ++this->missed_call_count;
 }
 
 const char* ComingCallHandler_GetContent(const coming_call_handler_t* this)
@@ -110,12 +110,11 @@ void ComingCallHandler_SetChoice(coming_call_handler_t* this, bool isAcceptCall)
 {
   if (isAcceptCall)
   {
-    printf("Accepted");
+    HC06_SendString(this->p_driver, "Accepted", 8);
   }
   else
   {
-    printf("Rejected");
-    ++this->missed_call_count;
+    HC06_SendString(this->p_driver, "Rejected", 8);
   }
 }
 

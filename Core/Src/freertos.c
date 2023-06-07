@@ -146,7 +146,7 @@ void FrontendRun(void const * argument)
 #ifdef JR_DEBUG
   int i = 1;
 #endif
-  osDelay(1000);
+  osDelay(500);
   Screen_Clear();
   /* Infinite loop */
   for(;;)
@@ -162,6 +162,10 @@ void FrontendRun(void const * argument)
     {
       ScreenManager_RecoverFromComingCall(&screen_obj);
     }
+#ifndef JR_DEBUG
+    // Count steps
+    ADXL345_DoStepCnt(&adxl345_obj);
+#endif
     // Detect and switch to next page
 #ifndef JR_DEBUG
     if (KEY_ON == KeyScan(PAGE_CHOOSE_KEY))
@@ -192,13 +196,11 @@ void FrontendRun(void const * argument)
 void BackendRun(void const * argument)
 {
   /* USER CODE BEGIN BackendRun */
+  
   /* Infinite loop */
   for(;;)
   {
-    // Count steps
-#ifndef JR_DEBUG
-    ADXL345_DoStepCnt(&adxl345_obj);
-#endif
+    osDelay(50);
   }
   /* USER CODE END BackendRun */
 }
@@ -238,6 +240,14 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
   default:
     break;
   }
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+		if(GPIO_Pin == HE_INT_Pin)
+		{
+			max30102_obj.max30102_int_flag = 1;
+		}
 }
 
 #ifdef __GNUC__

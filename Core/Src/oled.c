@@ -65,13 +65,20 @@ static void OLED_ShowShutdown()
   OLED_Driver_ShowChinese(0, 0, SHUTDOWN_CHINESE);
 }
 
-static void OLED_ShowTimeOnTop()
+static void OLED_ShowComponetOnTop()
 {
   RTC_TimeTypeDef time;
   HAL_RTC_GetTime(&hrtc, &time, RTC_FORMAT_BIN);
   char time_str[8];
   snprintf(time_str, sizeof(time_str), "%02d:%02d", time.Hours, time.Minutes);
   OLED_Driver_ShowAsciiString(0, 0, time_str);
+  if (0 != coming_call_handler_obj.missed_call_count)
+  {
+    OLED_Driver_ShowImage(OLED_WIDTH-16-16, 0, MISSED_CALL_IMAGE);
+    char missed_call_cnt_str[4];
+    snprintf(missed_call_cnt_str, sizeof(missed_call_cnt_str), "%2hu", coming_call_handler_obj.missed_call_count);
+    OLED_Driver_ShowAsciiString(OLED_WIDTH-16, 0, missed_call_cnt_str);
+  }
 }
 
 static void _ScreenAbstract_FirstShow(screen_abstract_t* this)
@@ -166,7 +173,7 @@ static void _ScreenHealthy_AccquireHealthyData(screen_healthy_t* this)
 static void _ScreenHealthy_RefreshShow(screen_abstract_t* parent)
 {
   screen_healthy_t* this = (screen_healthy_t*)parent;
-  OLED_ShowTimeOnTop();
+  OLED_ShowComponetOnTop();
   _ScreenHealthy_AccquireHealthyData(this);
 
   OLED_Driver_ShowAsciiString(OLED_CENTERED_POS(3, 5)+16+8, 3, this->hr_str);
@@ -176,7 +183,7 @@ static void _ScreenHealthy_RefreshShow(screen_abstract_t* parent)
 static void _ScreenHealthy_FirstShow(screen_abstract_t* parent)
 {
   screen_healthy_t* this = (screen_healthy_t*)parent;
-  OLED_ShowTimeOnTop();
+  OLED_ShowComponetOnTop();
   _ScreenHealthy_AccquireHealthyData(this);
   // 显示心率
   {
@@ -219,7 +226,7 @@ static void _ScreenPedometer_GetData(screen_pedometer_t* this)
 static void _ScreenPedometer_RefreshShow(screen_abstract_t* parent)
 {
   screen_pedometer_t* this = (screen_pedometer_t*)parent;
-  OLED_ShowTimeOnTop();
+  OLED_ShowComponetOnTop();
   _ScreenPedometer_GetData(this);
 
   OLED_Driver_ShowAsciiString(OLED_CENTERED_POS(4, 4)+4*16, 3, this->step_str);
@@ -229,7 +236,7 @@ static void _ScreenPedometer_RefreshShow(screen_abstract_t* parent)
 static void _ScreenPedometer_FirstShow(screen_abstract_t* parent)
 {
   screen_pedometer_t* this = (screen_pedometer_t*)parent;
-  OLED_ShowTimeOnTop();
+  OLED_ShowComponetOnTop();
   _ScreenPedometer_GetData(this);
   // 显示计步：今日步数xxxx
   {
@@ -314,8 +321,8 @@ void ScreenManager_Ctor(screen_manager_t* this)
   ScreenComingcall_Ctor(&this->coming_call_page);
 
   this->pages[0] = (screen_abstract_t*)&this->date_page;
-  this->pages[1] = (screen_abstract_t*)&this->healthy_page;
-  this->pages[2] = (screen_abstract_t*)&this->pedometer_page;
+  this->pages[1] = (screen_abstract_t*)&this->pedometer_page;
+  this->pages[2] = (screen_abstract_t*)&this->healthy_page;
   this->pages[3] = (screen_abstract_t*)&this->coming_call_page;
   this->current_page_idx = 0;
   this->current_page = (screen_abstract_t*)&this->date_page;

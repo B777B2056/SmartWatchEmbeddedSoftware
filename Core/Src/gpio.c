@@ -22,7 +22,7 @@
 #include "gpio.h"
 
 /* USER CODE BEGIN 0 */
-
+#include "cmsis_os.h"
 /* USER CODE END 0 */
 
 /*----------------------------------------------------------------------------*/
@@ -53,9 +53,6 @@ void MX_GPIO_Init(void)
   /*Configure GPIO pin Output Level */
   HAL_GPIO_WritePin(BEEP_GPIO_Port, BEEP_Pin, GPIO_PIN_SET);
 
-  /*Configure GPIO pin Output Level */
-  HAL_GPIO_WritePin(GPIOA, KEY_CONFIRM_Pin|KEY_PAGE_CHOOSE_Pin, GPIO_PIN_RESET);
-
   /*Configure GPIO pin : PtPin */
   GPIO_InitStruct.Pin = HE_INT_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
@@ -71,9 +68,8 @@ void MX_GPIO_Init(void)
 
   /*Configure GPIO pins : PAPin PAPin */
   GPIO_InitStruct.Pin = KEY_CONFIRM_Pin|KEY_PAGE_CHOOSE_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
-  GPIO_InitStruct.Pull = GPIO_NOPULL;
-  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
   HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
@@ -86,16 +82,17 @@ void MX_GPIO_Init(void)
 static uint8_t KeyScanImpl(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin)
 {
   /* Detect key is or is not pressed */
-  if (KEY_ON == HAL_GPIO_ReadPin(GPIOx,GPIO_Pin)) 
+  if (GPIO_PIN_RESET == HAL_GPIO_ReadPin(GPIOx, GPIO_Pin)) 
   {
+    osDelay(10);
+    if (GPIO_PIN_RESET == HAL_GPIO_ReadPin(GPIOx, GPIO_Pin)) 
+    {
       /* Wait key release */
-      while (KEY_ON == HAL_GPIO_ReadPin(GPIOx,GPIO_Pin));
+      while (GPIO_PIN_RESET == HAL_GPIO_ReadPin(GPIOx, GPIO_Pin));
       return KEY_ON;
+    }
   }
-  else
-  {
-    return KEY_OFF;
-  }
+  return KEY_OFF;
 }
 
 uint8_t KeyScan(KeyType key)
