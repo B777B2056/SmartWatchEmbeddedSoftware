@@ -21,5 +21,5 @@ TODO
 
 ## 4 软件设计
 * 基于FreeRtos的双Task：Frontend Task与 Backend Task
-* Frontend Task：OLED显示
-* Backend Task：芯片数据采集+来电监测
+* Frontend Task：OLED显示+来电监测
+* Backend Task：芯片数据采集
