@@ -9,7 +9,7 @@
 
 #define GRAVIT_ACC 1
 
-extern osMutexId stepCntMutexHandle;
+extern osMutexId stepCntGetterMutexHandle;
 
 /* 判断是否已经过了00:00，用于步数重置 */
 static bool IsNewDayStarted()
@@ -23,9 +23,9 @@ static bool IsNewDayStarted()
 
 static void ADXL345_ResetStepCnt(adxl345_t* obj)
 {
-  // osMutexWait(stepCntMutexHandle, osWaitForever);
+  osMutexWait(stepCntGetterMutexHandle, osWaitForever);
   obj->step_count = 0;
-	// osMutexRelease(stepCntMutexHandle);
+	osMutexRelease(stepCntGetterMutexHandle);
 }
 
 static float CalculateACCStd(adxl345_t* obj)
@@ -49,7 +49,11 @@ void ADXL345_Init(adxl345_t* obj)
 void ADXL345_DoStepCnt(adxl345_t* obj)
 {
   // If the time has passed 0 o'clock, reset the number of steps
-  if (IsNewDayStarted())  ADXL345_ResetStepCnt(obj);
+  if (IsNewDayStarted())
+  {
+    ADXL345_ResetStepCnt(obj);
+    return;
+  }
   // Count steps
   float accX = 0.0; float accY = 0.0; float accZ = 0.0;
   ADXL345_Driver_Axis_Data(&accX, &accY, &accZ);
@@ -75,15 +79,15 @@ void ADXL345_DoStepCnt(adxl345_t* obj)
     }
   }
   // Calculate step number
-  // osMutexWait(stepCntMutexHandle, osWaitForever);
+  osMutexWait(stepCntGetterMutexHandle, osWaitForever);
   obj->step_count += peak_cnt;
-  // osMutexRelease(stepCntMutexHandle);
+  osMutexRelease(stepCntGetterMutexHandle);
 }
 
 uint32_t ADXL345_GetSteps(adxl345_t* obj)
 {
-	// osMutexWait(stepCntMutexHandle, osWaitForever);
+	osMutexWait(stepCntGetterMutexHandle, osWaitForever);
   uint32_t tmp = obj->step_count;
-	// osMutexRelease(stepCntMutexHandle);
+	osMutexRelease(stepCntGetterMutexHandle);
   return tmp;
 }

@@ -60,7 +60,8 @@ coming_call_handler_t coming_call_handler_obj;
 /* USER CODE END Variables */
 osThreadId frontendTaskHandle;
 osThreadId backendTaskHandle;
-osMutexId stepCntMutexHandle;
+osMutexId stepCntGetterMutexHandle;
+osMutexId healthyGetterMutexHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
@@ -98,9 +99,13 @@ void MX_FREERTOS_Init(void) {
 
   /* USER CODE END Init */
   /* Create the mutex(es) */
-  /* definition and creation of stepCntMutex */
-  osMutexDef(stepCntMutex);
-  stepCntMutexHandle = osMutexCreate(osMutex(stepCntMutex));
+  /* definition and creation of stepCntGetterMutex */
+  osMutexDef(stepCntGetterMutex);
+  stepCntGetterMutexHandle = osMutexCreate(osMutex(stepCntGetterMutex));
+
+  /* definition and creation of healthyGetterMutex */
+  osMutexDef(healthyGetterMutex);
+  healthyGetterMutexHandle = osMutexCreate(osMutex(healthyGetterMutex));
 
   /* USER CODE BEGIN RTOS_MUTEX */
   /* add mutexes, ... */
@@ -120,11 +125,11 @@ void MX_FREERTOS_Init(void) {
 
   /* Create the thread(s) */
   /* definition and creation of frontendTask */
-  osThreadDef(frontendTask, FrontendRun, osPriorityNormal, 0, 128);
+  osThreadDef(frontendTask, FrontendRun, osPriorityNormal, 0, 256);
   frontendTaskHandle = osThreadCreate(osThread(frontendTask), NULL);
 
   /* definition and creation of backendTask */
-  osThreadDef(backendTask, BackendRun, osPriorityNormal, 0, 128);
+  osThreadDef(backendTask, BackendRun, osPriorityNormal, 0, 256);
   backendTaskHandle = osThreadCreate(osThread(backendTask), NULL);
 
   /* USER CODE BEGIN RTOS_THREADS */
@@ -143,9 +148,6 @@ void MX_FREERTOS_Init(void) {
 void FrontendRun(void const * argument)
 {
   /* USER CODE BEGIN FrontendRun */
-#ifdef JR_DEBUG
-  int i = 1;
-#endif
   osDelay(500);
   Screen_Clear();
   /* Infinite loop */
@@ -162,25 +164,14 @@ void FrontendRun(void const * argument)
     {
       ScreenManager_RecoverFromComingCall(&screen_obj);
     }
-#ifndef JR_DEBUG
-    // Count steps
-    ADXL345_DoStepCnt(&adxl345_obj);
-#endif
     // Detect and switch to next page
-#ifndef JR_DEBUG
     if (KEY_ON == KeyScan(PAGE_CHOOSE_KEY))
-#else
-    if (i%100 == 0)
-#endif
     {
       if (!screen_obj.is_in_coming_call)
         ScreenManager_GoNextPage(&screen_obj);
       else
         screen_obj.coming_call_page.is_accept_call = !screen_obj.coming_call_page.is_accept_call;
     }
-#ifdef JR_DEBUG
-    ++i;
-#endif
   }
   ScreenManager_Dtor(&screen_obj);
   /* USER CODE END FrontendRun */
@@ -200,7 +191,10 @@ void BackendRun(void const * argument)
   /* Infinite loop */
   for(;;)
   {
-    osDelay(50);
+    // Heart rate & spO2
+    MAX30102_DoSample(&max30102_obj);
+    // Count steps
+    ADXL345_DoStepCnt(&adxl345_obj);
   }
   /* USER CODE END BackendRun */
 }
@@ -214,9 +208,7 @@ void HardWare_Init()
   // Init MAX30102
   MAX30102_Init(&max30102_obj);
   // Init ADXL345
-#ifndef JR_DEBUG
   ADXL345_Init(&adxl345_obj);
-#endif
   // Init HC-06
   HC06_Init(&hc06_obj);
   // Init Coming call handler
@@ -240,14 +232,6 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
   default:
     break;
   }
-}
-
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
-{
-		if(GPIO_Pin == HE_INT_Pin)
-		{
-			max30102_obj.max30102_int_flag = 1;
-		}
 }
 
 #ifdef __GNUC__

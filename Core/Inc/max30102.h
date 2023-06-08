@@ -3,18 +3,24 @@
 
 #include <stdint.h>
 
-#define CACHE_NUMS 150//缓存数
-#define PPG_DATA_THRESHOLD 100 	//检测阈值
+#define MAX_BRIGHTNESS 255
+#define START 20
+#define DATA_LENGTH 100
 
 typedef struct
 {
-  int32_t n_sp02; //SPO2 value 
-  int32_t n_heart_rate;   //heart rate value 
-  uint8_t max30102_int_flag;  		//中断标志
-  float ppg_data_cache_RED[CACHE_NUMS];  //缓存区
-  float ppg_data_cache_IR[CACHE_NUMS];  //缓存区
-  uint16_t cache_counter;  //缓存计数器
-	float max30102_data[2], fir_output[2];
+  uint32_t aun_ir_buffer[DATA_LENGTH]; //IR LED sensor data
+  int32_t n_ir_buffer_length;    //data length
+  uint32_t aun_red_buffer[DATA_LENGTH];    //Red LED sensor data
+  int32_t n_spo2; //SPO2 value
+  int8_t ch_spo2_valid;   //indicator to show if the SP02 calculation is valid
+  int32_t n_heart_rate;   //heart rate value
+  int8_t  ch_hr_valid;    //indicator to show if the heart rate calculation is valid
+  uint8_t uch_dummy;
+  uint32_t un_min, un_max, un_prev_data;  //variables to calculate the on-board LED brightness that reflects the heartbeats
+	int32_t n_brightness;
+	float f_temp;
+  uint16_t write_idx;
 } max30102_t;
 
 void MAX30102_Init(max30102_t* obj);

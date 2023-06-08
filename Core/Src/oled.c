@@ -11,10 +11,6 @@
 #include "oledfont.h"
 #include "oledimg.h"
 
-#ifdef JR_DEBUG
-#include <stdlib.h>
-#endif
-
 #define ASCII_SYMBOL_WIDTH 8
 #define CHINESE_SYMBOL_WIDTH 16
 #define OLED_CENTERED_POS(CHINESE_N, ASCII_N) \
@@ -159,13 +155,8 @@ void ScreenDate_Ctor(screen_date_t* this)
 
 static void _ScreenHealthy_AccquireHealthyData(screen_healthy_t* this)
 {
-#ifndef JR_DEBUG
-  MAX30102_DoSample(&max30102_obj);
+  // MAX30102_DoSample(&max30102_obj);
   MAX30102_GetData(&max30102_obj, &this->heart_rate, &this->spo2);
-#else
-  this->heart_rate = rand()%300;
-  this->spo2 = rand()%200;
-#endif
   snprintf(this->hr_str, sizeof(this->hr_str), "%3ld", this->heart_rate);
   snprintf(this->spo2_str, sizeof(this->spo2_str), "%3ld%%", this->spo2);
 }
@@ -214,11 +205,7 @@ static uint16_t CalculateCalories(uint16_t step)
 
 static void _ScreenPedometer_GetData(screen_pedometer_t* this)
 {
-#ifndef JR_DEBUG
   uint16_t step = ADXL345_GetSteps(&adxl345_obj);
-#else
-  uint16_t step = rand()%50000;
-#endif
   snprintf(this->step_str, sizeof(this->step_str), "%5hu", step);
   snprintf(this->calories_str, sizeof(this->calories_str), "%4d", CalculateCalories(step));
 }
