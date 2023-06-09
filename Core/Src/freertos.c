@@ -53,6 +53,7 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
 bool is_sys_shutdown;
+bool enable_confirm_key;
 user_key_t page_key_obj, confirm_key_obj;
 adxl345_t adxl345_obj;
 screen_manager_t screen_obj;
@@ -184,11 +185,13 @@ void FrontendRun(void const * argument)
     // Call coming
     if (ComingCallHandler_IsNewCallComing(&coming_call_handler_obj))
     {
+      enable_confirm_key = true;
       ScreenManager_GoComingCallPage(&screen_obj);
     }
     // Call cancel
     if (ComingCallHandler_IsHangupByPeer(&coming_call_handler_obj))
     {
+      enable_confirm_key = false;
       ScreenManager_RecoverFromComingCall(&screen_obj);
     }
   }
@@ -252,7 +255,13 @@ void KeyScanTimerCallback(void const * argument)
   switch (KeyScan(&confirm_key_obj))
   {
   case KEY_ON:
-    ComingCallHandler_SetChoice(&coming_call_handler_obj, screen_obj.coming_call_page.is_accept_call);  // Notify bluetooth to do work
+    if (enable_confirm_key)
+    {
+      enable_confirm_key = false;
+      // Notify bluetooth to do work
+      ComingCallHandler_SetChoice(&coming_call_handler_obj, screen_obj.coming_call_page.is_accept_call);
+      ScreenManager_RecoverFromComingCall(&screen_obj);
+    }
     break;
   
   default:
@@ -265,7 +274,7 @@ void KeyScanTimerCallback(void const * argument)
 /* USER CODE BEGIN Application */
 void Objects_Init()
 {
-  is_sys_shutdown = false;
+  is_sys_shutdown = enable_confirm_key = false;
   // Init Keys
   KeyInit(&page_key_obj, PAGE_CHOOSE_KEY);
   KeyInit(&confirm_key_obj, CONFIRM_KEY);
