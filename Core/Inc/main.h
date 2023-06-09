@@ -92,7 +92,8 @@ void Error_Handler(void);
 #define SE_SDA_GPIO_Port GPIOB
 
 /* USER CODE BEGIN Private defines */
-
+#define KEY_TIMER_PERIOD_MS 50
+#define KEY_LONG_PRESS_THRESHOLD_MS 3000 
 /* USER CODE END Private defines */
 
 #ifdef __cplusplus

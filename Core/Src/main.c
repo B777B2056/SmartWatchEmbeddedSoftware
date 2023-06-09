@@ -54,7 +54,7 @@
 void SystemClock_Config(void);
 void MX_FREERTOS_Init(void);
 /* USER CODE BEGIN PFP */
-void HardWare_Init();
+void Objects_Init();
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
@@ -96,7 +96,7 @@ int main(void)
   MX_RTC_Init();
   /* USER CODE BEGIN 2 */
   HAL_Delay(1000);
-  HardWare_Init();
+  Objects_Init();
   /* USER CODE END 2 */
 
   /* Call init function for freertos objects (in freertos.c) */

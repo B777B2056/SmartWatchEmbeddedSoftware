@@ -79,34 +79,94 @@ void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 2 */
-static uint8_t KeyScanImpl(GPIO_TypeDef* GPIOx, uint16_t GPIO_Pin)
+void KeyInit(user_key_t* this, KeyType t)
 {
-  /* Detect key is or is not pressed */
-  if (GPIO_PIN_RESET == HAL_GPIO_ReadPin(GPIOx, GPIO_Pin)) 
-  {
-    osDelay(10);
-    if (GPIO_PIN_RESET == HAL_GPIO_ReadPin(GPIOx, GPIO_Pin)) 
-    {
-      /* Wait key release */
-      while (GPIO_PIN_RESET == HAL_GPIO_ReadPin(GPIOx, GPIO_Pin));
-      return KEY_ON;
-    }
-  }
-  return KEY_OFF;
+  this->type = t;
+  this->count = 0;
+  this->cur_status = KS_RELEASE;
+  this->is_short_pressed = this->is_long_pressed = false;
 }
 
-uint8_t KeyScan(KeyType key)
+static GPIO_PinState CheckGPIO_PinState(user_key_t* this)
 {
-  switch (key)
+  switch (this->type)
   {
   case PAGE_CHOOSE_KEY:
-    return KeyScanImpl(KEY_PAGE_CHOOSE_GPIO_Port, KEY_PAGE_CHOOSE_Pin);
+    return HAL_GPIO_ReadPin(KEY_PAGE_CHOOSE_GPIO_Port, KEY_PAGE_CHOOSE_Pin);
 
   case CONFIRM_KEY:
-    return KeyScanImpl(KEY_CONFIRM_GPIO_Port, KEY_CONFIRM_Pin);
+    return HAL_GPIO_ReadPin(KEY_CONFIRM_GPIO_Port, KEY_CONFIRM_Pin);
   
   default:
-    return KEY_OFF;
+    return GPIO_PIN_SET;
   }
+}
+
+/* Detect key is or is not pressed */
+uint8_t KeyScan(user_key_t* this)
+{
+  uint8_t ret = KEY_OFF;
+  switch (this->cur_status)
+  {
+  case KS_RELEASE:
+    if (this->is_short_pressed)
+    {
+      this->is_short_pressed = false;
+      ret = KEY_ON;
+    }
+    if (this->is_long_pressed)
+    {
+      this->is_long_pressed = false;
+      ret = KEY_LONG_ON;
+    }
+    if (GPIO_PIN_RESET == CheckGPIO_PinState(this))
+    {
+      this->cur_status = KS_SHAKE;
+    }
+    break;
+
+  case KS_SHAKE:
+    if (GPIO_PIN_RESET == CheckGPIO_PinState(this))
+    {
+      this->cur_status = KS_SHORT_PRESS;
+    }
+    else
+    {
+      this->cur_status = KS_RELEASE;
+    }
+    break;
+
+  case KS_SHORT_PRESS:
+    if (GPIO_PIN_SET == CheckGPIO_PinState(this))
+    {
+      this->count = 0;
+      this->is_short_pressed = true;
+      this->cur_status = KS_SHAKE;
+    }
+    else
+    {
+      ++this->count;
+      if (this->count < KEY_LONG_PRESS_THRESHOLD_MS/KEY_TIMER_PERIOD_MS)
+        this->cur_status = KS_SHORT_PRESS;
+      else
+        this->cur_status = KS_LONG_PRESS;
+    }
+    break;
+
+  case KS_LONG_PRESS:
+    this->count = 0;
+    if (GPIO_PIN_SET == CheckGPIO_PinState(this))
+    {
+      this->is_long_pressed = true;
+      this->cur_status = KS_SHAKE;
+    }
+    else
+      this->cur_status = KS_LONG_PRESS;
+    break;
+  
+  default:
+    break;
+  }
+  return ret;
 }
 /* USER CODE END 2 */

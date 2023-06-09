@@ -1,6 +1,7 @@
 #include "oled.h"
 #include "i2c.h"
 #include "gpio.h"
+#include "cmsis_os.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -28,6 +29,7 @@
     obj->parent.vptr = &vtbl;  \
   } while (0)
 
+extern user_key_t confirm_key_obj;
 extern max30102_t max30102_obj;
 extern adxl345_t adxl345_obj;
 extern coming_call_handler_t coming_call_handler_obj;
@@ -244,15 +246,6 @@ void ScreenPedometer_Ctor(screen_pedometer_t* this)
   DERIVED_CLASS_INIT(this, _ScreenPedometer_FirstShow, _ScreenPedometer_RefreshShow);
 }
 
-static void _ScreenComingcall_DetectUserChoiceInComingCall(screen_coming_call_t* this)
-{
-  if (KEY_ON == KeyScan(CONFIRM_KEY))
-  {
-    // Notify bluetooth to do work
-    ComingCallHandler_SetChoice(&coming_call_handler_obj, this->is_accept_call);
-  }
-}
-
 static void _ScreenComingcall_ShowBasicInfo()
 {
   OLED_Driver_ShowChinese(OLED_CENTERED_POS(2, 0), 0, COMING_CALL_CHINESE); 
@@ -282,14 +275,12 @@ static void _ScreenComingcall_FirstShow(screen_abstract_t* parent)
   screen_coming_call_t* this = (screen_coming_call_t*)parent;
   _ScreenComingcall_ShowBasicInfo();
   _ScreenComingcall_ShowVariableInfo(this);
-  _ScreenComingcall_DetectUserChoiceInComingCall(this);
 }
 
 static void _ScreenComingcall_RefreshShow(screen_abstract_t* parent)
 {
   screen_coming_call_t* this = (screen_coming_call_t*)parent;
   _ScreenComingcall_ShowVariableInfo(this);
-  _ScreenComingcall_DetectUserChoiceInComingCall(this);
 }
 
 void ScreenComingcall_Ctor(screen_coming_call_t* this)
@@ -306,25 +297,32 @@ void ScreenManager_Ctor(screen_manager_t* this)
   ScreenHealthy_Ctor(&this->healthy_page);
   ScreenPedometer_Ctor(&this->pedometer_page);
   ScreenComingcall_Ctor(&this->coming_call_page);
+  OLED_Driver_Init(&hi2c1);
 
   this->pages[0] = (screen_abstract_t*)&this->date_page;
   this->pages[1] = (screen_abstract_t*)&this->pedometer_page;
   this->pages[2] = (screen_abstract_t*)&this->healthy_page;
   this->pages[3] = (screen_abstract_t*)&this->coming_call_page;
+
+  ScreenManager_ShowStart(this);
+}
+
+void ScreenManager_ShowStart(screen_manager_t* this)
+{
   this->current_page_idx = 0;
   this->current_page = (screen_abstract_t*)&this->date_page;
   this->is_in_coming_call = false;
-
-  OLED_Driver_Init(&hi2c1);
-  Screen_Clear();
-  OLED_Driver_SetPos(0, 0);
   OLED_DisplayOn();
+  OLED_Driver_SetPos(0, 0);
+  Screen_Clear();
   OLED_ShowStartup();
 }
 
-void ScreenManager_Dtor(screen_manager_t* this)
+void ScreenManager_ShowStop(screen_manager_t* this)
 {
+  Screen_Clear();
   OLED_ShowShutdown();
+  osDelay(500);
   OLED_DisplayOff();
 }
 

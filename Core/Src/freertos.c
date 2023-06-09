@@ -52,6 +52,8 @@
 
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
+bool is_sys_shutdown;
+user_key_t page_key_obj, confirm_key_obj;
 adxl345_t adxl345_obj;
 screen_manager_t screen_obj;
 max30102_t max30102_obj;
@@ -60,6 +62,7 @@ coming_call_handler_t coming_call_handler_obj;
 /* USER CODE END Variables */
 osThreadId frontendTaskHandle;
 osThreadId backendTaskHandle;
+osTimerId keyScanTimerHandle;
 osMutexId stepCntGetterMutexHandle;
 osMutexId healthyGetterMutexHandle;
 
@@ -70,11 +73,15 @@ osMutexId healthyGetterMutexHandle;
 
 void FrontendRun(void const * argument);
 void BackendRun(void const * argument);
+void KeyScanTimerCallback(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
 /* GetIdleTaskMemory prototype (linked to static allocation support) */
 void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackType_t **ppxIdleTaskStackBuffer, uint32_t *pulIdleTaskStackSize );
+
+/* GetTimerTaskMemory prototype (linked to static allocation support) */
+void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer, StackType_t **ppxTimerTaskStackBuffer, uint32_t *pulTimerTaskStackSize );
 
 /* USER CODE BEGIN GET_IDLE_TASK_MEMORY */
 static StaticTask_t xIdleTaskTCBBuffer;
@@ -88,6 +95,19 @@ void vApplicationGetIdleTaskMemory( StaticTask_t **ppxIdleTaskTCBBuffer, StackTy
   /* place for user code */
 }
 /* USER CODE END GET_IDLE_TASK_MEMORY */
+
+/* USER CODE BEGIN GET_TIMER_TASK_MEMORY */
+static StaticTask_t xTimerTaskTCBBuffer;
+static StackType_t xTimerStack[configTIMER_TASK_STACK_DEPTH];
+
+void vApplicationGetTimerTaskMemory( StaticTask_t **ppxTimerTaskTCBBuffer, StackType_t **ppxTimerTaskStackBuffer, uint32_t *pulTimerTaskStackSize )
+{
+  *ppxTimerTaskTCBBuffer = &xTimerTaskTCBBuffer;
+  *ppxTimerTaskStackBuffer = &xTimerStack[0];
+  *pulTimerTaskStackSize = configTIMER_TASK_STACK_DEPTH;
+  /* place for user code */
+}
+/* USER CODE END GET_TIMER_TASK_MEMORY */
 
 /**
   * @brief  FreeRTOS initialization
@@ -114,6 +134,11 @@ void MX_FREERTOS_Init(void) {
   /* USER CODE BEGIN RTOS_SEMAPHORES */
   /* add semaphores, ... */
   /* USER CODE END RTOS_SEMAPHORES */
+
+  /* Create the timer(s) */
+  /* definition and creation of keyScanTimer */
+  osTimerDef(keyScanTimer, KeyScanTimerCallback);
+  keyScanTimerHandle = osTimerCreate(osTimer(keyScanTimer), osTimerPeriodic, NULL);
 
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
@@ -150,9 +175,11 @@ void FrontendRun(void const * argument)
   /* USER CODE BEGIN FrontendRun */
   osDelay(500);
   Screen_Clear();
+  osTimerStart(keyScanTimerHandle, KEY_TIMER_PERIOD_MS);
   /* Infinite loop */
-  for(;;)
+  for (;;)
   {
+    if (is_sys_shutdown)  continue;
     ScreenManager_ShowCurrentPage(&screen_obj);
     // Call coming
     if (ComingCallHandler_IsNewCallComing(&coming_call_handler_obj))
@@ -164,16 +191,7 @@ void FrontendRun(void const * argument)
     {
       ScreenManager_RecoverFromComingCall(&screen_obj);
     }
-    // Detect and switch to next page
-    if (KEY_ON == KeyScan(PAGE_CHOOSE_KEY))
-    {
-      if (!screen_obj.is_in_coming_call)
-        ScreenManager_GoNextPage(&screen_obj);
-      else
-        screen_obj.coming_call_page.is_accept_call = !screen_obj.coming_call_page.is_accept_call;
-    }
   }
-  ScreenManager_Dtor(&screen_obj);
   /* USER CODE END FrontendRun */
 }
 
@@ -189,8 +207,9 @@ void BackendRun(void const * argument)
   /* USER CODE BEGIN BackendRun */
   
   /* Infinite loop */
-  for(;;)
+  for (;;)
   {
+    if (is_sys_shutdown)  continue;
     // Heart rate & spO2
     MAX30102_DoSample(&max30102_obj);
     // Count steps
@@ -199,10 +218,57 @@ void BackendRun(void const * argument)
   /* USER CODE END BackendRun */
 }
 
+/* KeyScanTimerCallback function */
+void KeyScanTimerCallback(void const * argument)
+{
+  /* USER CODE BEGIN KeyScanTimerCallback */
+  switch (KeyScan(&page_key_obj))
+  {
+  case KEY_ON:
+    if (!screen_obj.is_in_coming_call)
+      ScreenManager_GoNextPage(&screen_obj);
+    else
+      screen_obj.coming_call_page.is_accept_call = !screen_obj.coming_call_page.is_accept_call;
+    break;
+
+  case KEY_LONG_ON:
+    if (is_sys_shutdown)
+    {
+      is_sys_shutdown = false;
+      ScreenManager_ShowStart(&screen_obj);
+      Screen_Clear();
+    }
+    else
+    {
+      is_sys_shutdown = true;
+      ScreenManager_ShowStop(&screen_obj);
+    }
+    break;
+  
+  default:
+    break;
+  }
+
+  switch (KeyScan(&confirm_key_obj))
+  {
+  case KEY_ON:
+    ComingCallHandler_SetChoice(&coming_call_handler_obj, screen_obj.coming_call_page.is_accept_call);  // Notify bluetooth to do work
+    break;
+  
+  default:
+    break;
+  }
+  /* USER CODE END KeyScanTimerCallback */
+}
+
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
-void HardWare_Init()
+void Objects_Init()
 {
+  is_sys_shutdown = false;
+  // Init Keys
+  KeyInit(&page_key_obj, PAGE_CHOOSE_KEY);
+  KeyInit(&confirm_key_obj, CONFIRM_KEY);
   // Init Screen
   ScreenManager_Ctor(&screen_obj);
   // Init MAX30102

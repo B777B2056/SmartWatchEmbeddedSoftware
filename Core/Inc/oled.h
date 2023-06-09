@@ -87,7 +87,8 @@ typedef struct
 } screen_manager_t;
 
 void ScreenManager_Ctor(screen_manager_t* this);
-void ScreenManager_Dtor(screen_manager_t* this);
+void ScreenManager_ShowStart(screen_manager_t* this);
+void ScreenManager_ShowStop(screen_manager_t* this);
 void ScreenManager_ShowCurrentPage(screen_manager_t* this);
 void ScreenManager_GoNextPage(screen_manager_t* this);
 void ScreenManager_GoComingCallPage(screen_manager_t* this);
