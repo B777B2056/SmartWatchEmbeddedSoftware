@@ -43,19 +43,13 @@ typedef enum
   PAGE_CHOOSE_KEY = 0x00,
   CONFIRM_KEY
 } KeyType;
-
-#define ENUM_ITEM(ITEM) ITEM,
-
-#define KEY_STATUS_ENUM(STATUS) \
-    STATUS(KS_RELEASE)  \
-    STATUS(KS_SHAKE)  \
-    STATUS(KS_SHORT_PRESS)  \
-    STATUS(KS_LONG_PRESS)  \
-    STATUS(KS_NUM)  \
     
 typedef enum
 {
-  KEY_STATUS_ENUM(ENUM_ITEM)
+  KS_RELEASE = 0,
+  KS_SHAKE,
+  KS_SHORT_PRESS,
+  KS_LONG_PRESS
 } KEY_STATUS;
 
 typedef struct

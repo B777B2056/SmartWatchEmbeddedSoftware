@@ -7,6 +7,13 @@
 #define START 20
 #define DATA_LENGTH 100
 
+typedef enum
+{
+  MA_MOVE_PRE = 0,
+  MA_WAIT_INT,
+  MA_FILL
+} MAX30102_STATUS;
+
 typedef struct
 {
   uint32_t aun_ir_buffer[DATA_LENGTH]; //IR LED sensor data
@@ -20,7 +27,8 @@ typedef struct
   uint32_t un_min, un_max, un_prev_data;  //variables to calculate the on-board LED brightness that reflects the heartbeats
 	int32_t n_brightness;
 	float f_temp;
-  uint16_t write_idx;
+  uint16_t write_size, write_idx;
+  MAX30102_STATUS cur_status;
 } max30102_t;
 
 void MAX30102_Init(max30102_t* obj);
