@@ -18,7 +18,6 @@ TODO
 * 心率&血氧：1xMAX30102（I2C）
 * 通讯：1xHC-06（UART）
 * 2x微动开关
-* 1x无源蜂鸣器
 
 ## 4 软件设计
 * 基于FreeRtos的双Task：Frontend Task与 Backend Task
