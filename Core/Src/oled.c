@@ -200,16 +200,11 @@ void ScreenHealthy_Ctor(screen_healthy_t* this)
   this->heart_rate = this->spo2 = 0;
 }
 
-static uint16_t CalculateCalories(uint16_t step)
-{
-  return step * 0.046;
-}
-
 static void _ScreenPedometer_GetData(screen_pedometer_t* this)
 {
   uint16_t step = ADXL345_GetSteps(&adxl345_obj);
   snprintf(this->step_str, sizeof(this->step_str), "%5hu", step);
-  snprintf(this->calories_str, sizeof(this->calories_str), "%4d", CalculateCalories(step));
+  snprintf(this->calories_str, sizeof(this->calories_str), "%4d", ADXL345_GetCalories(&adxl345_obj));
 }
 
 static void _ScreenPedometer_RefreshShow(screen_abstract_t* parent)

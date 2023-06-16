@@ -72,8 +72,6 @@ void Error_Handler(void);
 #define HE_INT_Pin GPIO_PIN_0
 #define HE_INT_GPIO_Port GPIOB
 #define HE_INT_EXTI_IRQn EXTI0_IRQn
-#define BEEP_Pin GPIO_PIN_1
-#define BEEP_GPIO_Port GPIOB
 #define HE_SCL_Pin GPIO_PIN_10
 #define HE_SCL_GPIO_Port GPIOB
 #define HE_SDA_Pin GPIO_PIN_11

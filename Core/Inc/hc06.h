@@ -9,6 +9,10 @@
 #define MSG_TYPE_NOT_COMPLETED        0X00
 #define MSG_TYPE_COMING_CALL_NOTIFY   0X01
 #define MSG_TYPE_CALL_HANGUP_NOTIFY   0X02
+#define MSG_TYPE_STEPCNT              0X03
+#define MSG_TYPE_KAL                  0x04
+#define MSG_TYPE_HEART_RATE           0x05
+#define MSG_TYPE_SPO2                 0x06
 
 #define MSG_STATUS_ON_HEADER_TYPE     0X00
 #define MSG_STATUS_ON_HEADER_LENGTH   0X01

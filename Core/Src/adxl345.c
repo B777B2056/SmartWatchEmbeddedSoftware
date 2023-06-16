@@ -91,3 +91,8 @@ uint32_t ADXL345_GetSteps(adxl345_t* obj)
 	osMutexRelease(stepCntGetterMutexHandle);
   return tmp;
 }
+
+uint16_t ADXL345_GetCalories(adxl345_t* obj) 
+{
+  return ADXL345_GetSteps(obj) * 0.046;
+}

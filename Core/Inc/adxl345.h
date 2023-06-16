@@ -14,5 +14,6 @@ typedef struct
 void ADXL345_Init(adxl345_t* obj);
 void ADXL345_DoStepCnt(adxl345_t* obj);
 uint32_t ADXL345_GetSteps(adxl345_t* obj);
+uint16_t ADXL345_GetCalories(adxl345_t* obj);
 
 #endif

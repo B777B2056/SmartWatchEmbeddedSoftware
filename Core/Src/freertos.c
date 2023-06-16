@@ -47,7 +47,15 @@
 
 /* Private macro -------------------------------------------------------------*/
 /* USER CODE BEGIN PM */
-
+#define SEND_DATA_TO_BLUETOOTH(hc06_obj_ptr, msg_type, data) \
+  do  \
+  { \
+    char msg[16]; \
+    msg[0] = msg_type;  \
+    msg[1] = snprintf(msg+2, sizeof(msg)-2, "%d", (int)data); \
+    HC06_SendString(hc06_obj_ptr, msg, 2+msg[1]);  \
+  } while (0)
+  
 /* USER CODE END PM */
 
 /* Private variables ---------------------------------------------------------*/
@@ -69,7 +77,7 @@ osMutexId healthyGetterMutexHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
-
+void SendDataToMobileApp();
 /* USER CODE END FunctionPrototypes */
 
 void FrontendRun(void const * argument);
@@ -217,6 +225,8 @@ void BackendRun(void const * argument)
     MAX30102_DoSample(&max30102_obj);
     // Count steps
     ADXL345_DoStepCnt(&adxl345_obj);
+    // Send data to APP by Bluetooth
+    SendDataToMobileApp();
   }
   /* USER CODE END BackendRun */
 }
@@ -288,6 +298,18 @@ void Objects_Init()
   HC06_Init(&hc06_obj);
   // Init Coming call handler
   ComingCallHandler_Init(&coming_call_handler_obj, &hc06_obj);
+}
+
+void SendDataToMobileApp()
+{
+  uint32_t step = ADXL345_GetSteps(&adxl345_obj);
+  int16_t kal = ADXL345_GetCalories(&adxl345_obj);
+  int32_t hr = 0; int32_t spo2 = 0;
+  MAX30102_GetData(&max30102_obj, &hr, &spo2);
+  SEND_DATA_TO_BLUETOOTH(&hc06_obj, MSG_TYPE_STEPCNT, step);
+  SEND_DATA_TO_BLUETOOTH(&hc06_obj, MSG_TYPE_KAL, kal);
+  SEND_DATA_TO_BLUETOOTH(&hc06_obj, MSG_TYPE_HEART_RATE, hr);
+  SEND_DATA_TO_BLUETOOTH(&hc06_obj, MSG_TYPE_SPO2, spo2);
 }
 
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
