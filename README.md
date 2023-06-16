@@ -6,6 +6,7 @@
 * 血氧采集
 * 时间与日期显示
 * 手机来电提示，接听/拒绝
+* [安卓APP上位机](https://github.com/B777B2056/SmartWatchMobileAPP)
 
 ## 2 实物效果
 TODO
