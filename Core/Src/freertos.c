@@ -61,7 +61,6 @@
 /* Private variables ---------------------------------------------------------*/
 /* USER CODE BEGIN Variables */
 bool is_sys_shutdown;
-bool enable_confirm_key;
 user_key_t page_key_obj, confirm_key_obj;
 adxl345_t adxl345_obj;
 screen_manager_t screen_obj;
@@ -72,6 +71,7 @@ coming_call_handler_t coming_call_handler_obj;
 osThreadId frontendTaskHandle;
 osThreadId backendTaskHandle;
 osTimerId keyScanTimerHandle;
+osTimerId stopwatchTimerHandle;
 osMutexId stepCntGetterMutexHandle;
 osMutexId healthyGetterMutexHandle;
 
@@ -83,6 +83,7 @@ void SendDataToMobileApp();
 void FrontendRun(void const * argument);
 void BackendRun(void const * argument);
 void KeyScanTimerCallback(void const * argument);
+void StopwatchCallback(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -149,6 +150,10 @@ void MX_FREERTOS_Init(void) {
   osTimerDef(keyScanTimer, KeyScanTimerCallback);
   keyScanTimerHandle = osTimerCreate(osTimer(keyScanTimer), osTimerPeriodic, NULL);
 
+  /* definition and creation of stopwatchTimer */
+  osTimerDef(stopwatchTimer, StopwatchCallback);
+  stopwatchTimerHandle = osTimerCreate(osTimer(stopwatchTimer), osTimerPeriodic, NULL);
+
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
@@ -185,23 +190,22 @@ void FrontendRun(void const * argument)
   osDelay(500);
   Screen_Clear();
   osTimerStart(keyScanTimerHandle, KEY_TIMER_PERIOD_MS);
+  osTimerStart(stopwatchTimerHandle, 10);
   /* Infinite loop */
   for (;;)
   {
     if (is_sys_shutdown)  continue;
-    ScreenManager_ShowCurrentPage(&screen_obj);
     // Call coming
     if (ComingCallHandler_IsNewCallComing(&coming_call_handler_obj))
     {
-      enable_confirm_key = true;
-      ScreenManager_GoComingCallPage(&screen_obj);
+      screen_obj.is_in_coming_call = true;
     }
     // Call cancel
     if (ComingCallHandler_IsHangupByPeer(&coming_call_handler_obj))
     {
-      enable_confirm_key = false;
-      ScreenManager_RecoverFromComingCall(&screen_obj);
+      screen_obj.is_in_coming_call = false;
     }
+    ScreenManager_Schedule(&screen_obj);
   }
   /* USER CODE END FrontendRun */
 }
@@ -239,7 +243,12 @@ void KeyScanTimerCallback(void const * argument)
   {
   case KEY_ON:
     if (!screen_obj.is_in_coming_call)
-      ScreenManager_GoNextPage(&screen_obj);
+    {
+      if (ScreenManager_IsInStopwatch(&screen_obj))
+        screen_obj.stopwatch_page.is_started = !screen_obj.stopwatch_page.is_started;
+      else
+        ScreenManager_PageSwitch(&screen_obj);
+    }
     else
       screen_obj.coming_call_page.is_accept_call = !screen_obj.coming_call_page.is_accept_call;
     break;
@@ -265,12 +274,16 @@ void KeyScanTimerCallback(void const * argument)
   switch (KeyScan(&confirm_key_obj))
   {
   case KEY_ON:
-    if (enable_confirm_key)
+    if (screen_obj.is_in_coming_call)
     {
-      enable_confirm_key = false;
+      screen_obj.is_in_coming_call = false;
       // Notify bluetooth to do work
       ComingCallHandler_SetChoice(&coming_call_handler_obj, screen_obj.coming_call_page.is_accept_call);
-      ScreenManager_RecoverFromComingCall(&screen_obj);
+      // ScreenManager_RecoverFromComingCall(&screen_obj);
+    }
+    else
+    {
+      ScreenManager_IntoNextLevelMenu(&screen_obj);
     }
     break;
   
@@ -280,11 +293,20 @@ void KeyScanTimerCallback(void const * argument)
   /* USER CODE END KeyScanTimerCallback */
 }
 
+/* StopwatchCallback function */
+void StopwatchCallback(void const * argument)
+{
+  /* USER CODE BEGIN StopwatchCallback */
+  if (screen_obj.stopwatch_page.is_started)
+    ++screen_obj.stopwatch_page.time_count;
+  /* USER CODE END StopwatchCallback */
+}
+
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
 void Objects_Init()
 {
-  is_sys_shutdown = enable_confirm_key = false;
+  is_sys_shutdown = false;
   // Init Keys
   KeyInit(&page_key_obj, PAGE_CHOOSE_KEY);
   KeyInit(&confirm_key_obj, CONFIRM_KEY);

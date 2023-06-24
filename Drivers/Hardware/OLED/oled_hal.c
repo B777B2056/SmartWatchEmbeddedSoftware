@@ -255,6 +255,11 @@ void OLED_Driver_SetPos(uint8_t x, uint8_t y)
 	OLED_Driver_WriteCmd((x & 0x0f) | 0x00);
 }
 
+void OLED_Driver_Clear()
+{
+  OLED_Driver_ClearTargetRowBelow(0);
+}
+
 void OLED_Driver_ClearTargetRow(uint8_t row)
 {
   OLED_Driver_WriteCmd(0xb0 + row);
@@ -303,7 +308,7 @@ void OLED_Driver_ShowAsciiString(uint8_t start_x, uint8_t start_y, const char* d
   }
 }
 
-void OLED_Driver_ShowChineseImpl(uint8_t start_x, uint8_t start_y, const uint8_t* data, uint8_t size)
+void OLED_Driver_ShowChineseImpl(uint8_t start_x, uint8_t start_y, const uint8_t* data, uint16_t size)
 {
   uint8_t i, j, x, y;
   uint8_t n = size / 16;
@@ -333,4 +338,18 @@ void OLED_Driver_ShowChineseImpl(uint8_t start_x, uint8_t start_y, const uint8_t
       x += 16;
     }
   }
+}
+
+void OLED_Driver_DisplayOn()
+{
+	OLED_Driver_WriteCmd(0x8D);
+	OLED_Driver_WriteCmd(0x14);
+	OLED_Driver_WriteCmd(0xAF);
+}
+
+void OLED_Driver_DisplayOff()
+{
+	OLED_Driver_WriteCmd(0x8D);
+	OLED_Driver_WriteCmd(0x10);
+	OLED_Driver_WriteCmd(0xAF);
 }

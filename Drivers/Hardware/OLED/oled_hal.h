@@ -18,14 +18,18 @@ void OLED_Driver_Init(I2C_HandleTypeDef* hi2c);
 void OLED_Driver_WriteCmd(uint8_t cmd);
 void OLED_Driver_WriteChar(uint8_t data);
 void OLED_Driver_SetPos(uint8_t x, uint8_t y);
+void OLED_Driver_Clear();
 void OLED_Driver_ClearTargetRow(uint8_t row);
 void OLED_Driver_ClearTargetRowBelow(uint8_t row);
 
 void OLED_Driver_ShowAsciiChar(uint8_t start_x, uint8_t start_y, unsigned char ch);
 void OLED_Driver_ShowAsciiString(uint8_t start_x, uint8_t start_y, const char* data);
-void OLED_Driver_ShowChineseImpl(uint8_t start_x, uint8_t start_y, const uint8_t* data, uint8_t size);
+void OLED_Driver_ShowChineseImpl(uint8_t start_x, uint8_t start_y, const uint8_t* data, uint16_t size);
 
 #define OLED_Driver_ShowChinese(x, y, data) OLED_Driver_ShowChineseImpl(x, y, data, sizeof(data)/sizeof(data[0]))
 #define OLED_Driver_ShowImage(x, y, data) OLED_Driver_ShowChinese(x, y, data)
+
+void OLED_Driver_DisplayOn();
+void OLED_Driver_DisplayOff();
 
 #endif
