@@ -33,6 +33,7 @@
 #include <stdbool.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdlib.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -53,7 +54,7 @@
     char msg[16]; \
     msg[0] = msg_type;  \
     msg[1] = snprintf(msg+2, sizeof(msg)-2, "%d", (int)data); \
-    HC06_SendString(hc06_obj_ptr, msg, 2+msg[1]);  \
+    HC06_SendMsg(hc06_obj_ptr, msg, 2+msg[1]);  \
   } while (0)
   
 /* USER CODE END PM */
@@ -72,18 +73,19 @@ osThreadId frontendTaskHandle;
 osThreadId backendTaskHandle;
 osTimerId keyScanTimerHandle;
 osTimerId stopwatchTimerHandle;
+osTimerId dataSendTimerHandle;
 osMutexId stepCntGetterMutexHandle;
 osMutexId healthyGetterMutexHandle;
 
 /* Private function prototypes -----------------------------------------------*/
 /* USER CODE BEGIN FunctionPrototypes */
-void SendDataToMobileApp();
 /* USER CODE END FunctionPrototypes */
 
 void FrontendRun(void const * argument);
 void BackendRun(void const * argument);
 void KeyScanTimerCallback(void const * argument);
 void StopwatchCallback(void const * argument);
+void DataSendCallback(void const * argument);
 
 void MX_FREERTOS_Init(void); /* (MISRA C 2004 rule 8.1) */
 
@@ -154,6 +156,10 @@ void MX_FREERTOS_Init(void) {
   osTimerDef(stopwatchTimer, StopwatchCallback);
   stopwatchTimerHandle = osTimerCreate(osTimer(stopwatchTimer), osTimerPeriodic, NULL);
 
+  /* definition and creation of dataSendTimer */
+  osTimerDef(dataSendTimer, DataSendCallback);
+  dataSendTimerHandle = osTimerCreate(osTimer(dataSendTimer), osTimerPeriodic, NULL);
+
   /* USER CODE BEGIN RTOS_TIMERS */
   /* start timers, add new ones, ... */
   /* USER CODE END RTOS_TIMERS */
@@ -191,6 +197,7 @@ void FrontendRun(void const * argument)
   Screen_Clear();
   osTimerStart(keyScanTimerHandle, KEY_TIMER_PERIOD_MS);
   osTimerStart(stopwatchTimerHandle, 10);
+  osTimerStart(dataSendTimerHandle, 1000);
   /* Infinite loop */
   for (;;)
   {
@@ -201,7 +208,7 @@ void FrontendRun(void const * argument)
       screen_obj.is_in_coming_call = true;
     }
     // Call cancel
-    if (ComingCallHandler_IsHangupByPeer(&coming_call_handler_obj))
+    if (ComingCallHandler_IsCallHandled(&coming_call_handler_obj))
     {
       screen_obj.is_in_coming_call = false;
     }
@@ -229,8 +236,6 @@ void BackendRun(void const * argument)
     MAX30102_DoSample(&max30102_obj);
     // Count steps
     ADXL345_DoStepCnt(&adxl345_obj);
-    // Send data to APP by Bluetooth
-    SendDataToMobileApp();
   }
   /* USER CODE END BackendRun */
 }
@@ -279,7 +284,6 @@ void KeyScanTimerCallback(void const * argument)
       screen_obj.is_in_coming_call = false;
       // Notify bluetooth to do work
       ComingCallHandler_SetChoice(&coming_call_handler_obj, screen_obj.coming_call_page.is_accept_call);
-      // ScreenManager_RecoverFromComingCall(&screen_obj);
     }
     else
     {
@@ -302,6 +306,18 @@ void StopwatchCallback(void const * argument)
   /* USER CODE END StopwatchCallback */
 }
 
+/* DataSendCallback function */
+void DataSendCallback(void const * argument)
+{
+  /* USER CODE BEGIN DataSendCallback */
+  // Send data to APP by Bluetooth
+  SEND_DATA_TO_BLUETOOTH(&hc06_obj, MSG_TYPE_STEPCNT, screen_obj.pedometer_page.step_cnt);
+  SEND_DATA_TO_BLUETOOTH(&hc06_obj, MSG_TYPE_KAL, screen_obj.pedometer_page.kal);
+  SEND_DATA_TO_BLUETOOTH(&hc06_obj, MSG_TYPE_HEART_RATE, screen_obj.healthy_page.heart_rate);
+  SEND_DATA_TO_BLUETOOTH(&hc06_obj, MSG_TYPE_SPO2, screen_obj.healthy_page.spo2);
+  /* USER CODE END DataSendCallback */
+}
+
 /* Private application code --------------------------------------------------*/
 /* USER CODE BEGIN Application */
 void Objects_Init()
@@ -322,18 +338,6 @@ void Objects_Init()
   ComingCallHandler_Init(&coming_call_handler_obj, &hc06_obj);
 }
 
-void SendDataToMobileApp()
-{
-  uint32_t step = ADXL345_GetSteps(&adxl345_obj);
-  int16_t kal = ADXL345_GetCalories(&adxl345_obj);
-  int32_t hr = 0; int32_t spo2 = 0;
-  MAX30102_GetData(&max30102_obj, &hr, &spo2);
-  SEND_DATA_TO_BLUETOOTH(&hc06_obj, MSG_TYPE_STEPCNT, step);
-  SEND_DATA_TO_BLUETOOTH(&hc06_obj, MSG_TYPE_KAL, kal);
-  SEND_DATA_TO_BLUETOOTH(&hc06_obj, MSG_TYPE_HEART_RATE, hr);
-  SEND_DATA_TO_BLUETOOTH(&hc06_obj, MSG_TYPE_SPO2, spo2);
-}
-
 void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 {
   switch (HC06_HandleMsg(&hc06_obj))
@@ -345,6 +349,10 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 
   case MSG_TYPE_CALL_HANGUP_NOTIFY:
     ComingCallHandler_PeerHangupNotify(&coming_call_handler_obj);
+    break;
+
+  case MSG_TYPE_CALL_ACCEPT_NOTIFY:
+    ComingCallHandler_AcceptCallNotify(&coming_call_handler_obj);
     break;
   
   case MSG_TYPE_NOT_COMPLETED:
@@ -361,7 +369,7 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 // 重定向printf到串口USART2（蓝牙）
 PUTCHAR_PROTOTYPE
 {
-    HC06_SendString(&hc06_obj, (char*)&ch, 1);
+    HC06_SendMsg(&hc06_obj, (char*)&ch, 1);
     return ch;
 }
 /* USER CODE END Application */

@@ -66,6 +66,8 @@ void ScreenHealthy_Ctor(screen_healthy_t* this);
 typedef struct
 {
   screen_abstract_t parent;
+  uint32_t step_cnt;
+  uint16_t kal;
   char step_str[6];
   char calories_str[8];
 } screen_pedometer_t;

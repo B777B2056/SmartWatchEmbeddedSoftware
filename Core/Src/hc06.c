@@ -16,7 +16,7 @@ void HC06_Init(hc06_t* obj)
   HC06_WaitMsg(obj);
 }
 
-void HC06_SendString(hc06_t* obj, const char* str, uint16_t size)
+void HC06_SendMsg(hc06_t* obj, const char* str, uint16_t size)
 {
   uint16_t i;
   for (i = 0; i < size; ++i)
@@ -68,7 +68,7 @@ uint8_t HC06_HandleMsg(hc06_t* obj)
 void ComingCallHandler_Init(coming_call_handler_t* this, hc06_t* driver)
 {
   this->has_new_msg = false;
-  this->is_hangup = false;
+  this->is_handled = false;
   this->p_driver = driver;
   memset(this->content, 0, sizeof(this->content));
   this->missed_call_count = 0;
@@ -91,13 +91,19 @@ void ComingCallHandler_NewCallNotify(coming_call_handler_t* this)
   memcpy(this->content, this->p_driver->rx_buffer, this->p_driver->msg_len);
   this->content[this->p_driver->msg_len] = '\0';
   this->has_new_msg = true;
-  this->is_hangup = false;
+  this->is_handled = false;
+}
+
+void ComingCallHandler_AcceptCallNotify(coming_call_handler_t* this)
+{
+  this->has_new_msg = false;
+  this->is_handled = true;
 }
 
 void ComingCallHandler_PeerHangupNotify(coming_call_handler_t* this)
 {
   this->has_new_msg = false;
-  this->is_hangup = true;
+  this->is_handled = true;
   ++this->missed_call_count;
 }
 
@@ -108,21 +114,20 @@ const char* ComingCallHandler_GetContent(const coming_call_handler_t* this)
 
 void ComingCallHandler_SetChoice(coming_call_handler_t* this, bool isAcceptCall)
 {
-  if (isAcceptCall)
+  if (!isAcceptCall)
   {
-    HC06_SendString(this->p_driver, "Accepted", 8);
-  }
-  else
-  {
-    HC06_SendString(this->p_driver, "Rejected", 8);
+    char msg[2];
+    msg[0] = MSG_TYPE_CALL_REJECT_NOTIFY;
+    msg[1] = 0x00;
+    HC06_SendMsg(this->p_driver, msg, 2);
   }
 }
 
-bool ComingCallHandler_IsHangupByPeer(coming_call_handler_t* this)
+bool ComingCallHandler_IsCallHandled(coming_call_handler_t* this)
 {
-  if (this->is_hangup)
+  if (this->is_handled)
   {
-    this->is_hangup = false;
+    this->is_handled = false;
     return true;
   }
   else

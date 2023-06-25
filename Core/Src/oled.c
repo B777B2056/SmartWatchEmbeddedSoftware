@@ -198,7 +198,6 @@ void ScreenStopwatch_Stop(screen_stopwatch_t* this)
 
 static void _ScreenHealthy_AccquireHealthyData(screen_healthy_t* this)
 {
-  // MAX30102_DoSample(&max30102_obj);
   MAX30102_GetData(&max30102_obj, &this->heart_rate, &this->spo2);
   snprintf(this->hr_str, sizeof(this->hr_str), "%3ld", this->heart_rate);
   snprintf(this->spo2_str, sizeof(this->spo2_str), "%3ld%%", this->spo2);
@@ -243,9 +242,10 @@ void ScreenHealthy_Ctor(screen_healthy_t* this)
 
 static void _ScreenPedometer_GetData(screen_pedometer_t* this)
 {
-  uint16_t step = ADXL345_GetSteps(&adxl345_obj);
-  snprintf(this->step_str, sizeof(this->step_str), "%5hu", step);
-  snprintf(this->calories_str, sizeof(this->calories_str), "%4d", ADXL345_GetCalories(&adxl345_obj));
+  this->step_cnt = ADXL345_GetSteps(&adxl345_obj);
+  this->kal = ADXL345_GetCalories(&adxl345_obj);
+  snprintf(this->step_str, sizeof(this->step_str), "%5lu", this->step_cnt);
+  snprintf(this->calories_str, sizeof(this->calories_str), "%4d", this->kal);
 }
 
 static void _ScreenPedometer_RefreshShow(screen_abstract_t* parent)
@@ -280,12 +280,14 @@ static void _ScreenPedometer_FirstShow(screen_abstract_t* parent)
 void ScreenPedometer_Ctor(screen_pedometer_t* this)
 {
   DERIVED_CLASS_INIT(this, _ScreenPedometer_FirstShow, _ScreenPedometer_RefreshShow);
+  this->step_cnt = 0;
+  this->kal = 0;
 }
 
 static void _ScreenComingcall_ShowBasicInfo()
 {
   OLED_Driver_ShowChinese(OLED_CENTERED_POS(2, 0), 0, COMING_CALL_CHINESE); 
-  OLED_Driver_ShowChinese(16, 6, CALL_ACCEPT_CHINESE);
+  // OLED_Driver_ShowChinese(16, 6, CALL_ACCEPT_CHINESE);
   OLED_Driver_ShowChinese(6*16, 6, CALL_REJECT_CHINESE);
 }
 
@@ -296,13 +298,11 @@ static void _ScreenComingcall_ShowVariableInfo(screen_coming_call_t* this)
   OLED_Driver_ShowAsciiString(OLED_CENTERED_POS(0, strlen(phone_number)), 3, phone_number);
   if (this->is_accept_call)
   {
-    OLED_Driver_ShowChinese(0, 6, ACCEPT_SYMBOL);
     OLED_Driver_ShowChinese(5*16, 6, REJECT_SYMBOL);
   }
   else
   {
     OLED_Driver_ShowChinese(5*16, 6, ACCEPT_SYMBOL);
-    OLED_Driver_ShowChinese(0, 6, REJECT_SYMBOL);
   }
 }
 
@@ -324,7 +324,7 @@ void ScreenComingcall_Ctor(screen_coming_call_t* this)
   DERIVED_CLASS_INIT(this, _ScreenComingcall_FirstShow, _ScreenComingcall_RefreshShow);
 
   this->peer_name = NULL;
-  this->is_accept_call = true;
+  this->is_accept_call = false;
 }
 
 static void _ScreenIcon_ShowBasicInfo()
